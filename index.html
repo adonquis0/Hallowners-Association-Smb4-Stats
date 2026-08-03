@@ -535,6 +535,16 @@
   }
   .import-status.error{color:var(--crimson);}
   .reset-row{margin-top:20px;}
+  .sheet-url-input{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    background:var(--navy-950);
+    color:var(--cream);
+    border:1px solid var(--hairline);
+    padding:8px 10px;
+    width:100%;
+  }
+  .sheet-url-input::placeholder{color:var(--cream-dim);}
   .reset-btn{
     font-family:'IBM Plex Mono',monospace;
     font-size:11px;
@@ -668,6 +678,20 @@
     </div>
 
     <div class="import-block">
+      <h4>Sync from Google Sheets</h4>
+      <p>Paste the published-CSV link for each tab of your sheet (File &rarr; Share &rarr; Publish to web &rarr; pick the tab &rarr; CSV). Same columns as the CSV templates below. Links are remembered — after the first sync you can just click "Sync Now" whenever you update the sheet.</p>
+      <div class="import-row" style="flex-direction:column; align-items:stretch; gap:8px;">
+        <input type="text" id="sheetTeamsUrl" placeholder="Teams / Standings sheet CSV link" class="sheet-url-input">
+        <input type="text" id="sheetBattersUrl" placeholder="Batting Stats sheet CSV link" class="sheet-url-input">
+        <input type="text" id="sheetPitchersUrl" placeholder="Pitching Stats sheet CSV link" class="sheet-url-input">
+      </div>
+      <div class="import-row" style="margin-top:12px;">
+        <button class="file-btn" id="sheetSyncBtn">Sync Now</button>
+      </div>
+      <div class="import-status" id="sheetSyncStatus"></div>
+    </div>
+
+    <div class="import-block">
       <h4>Player Photos</h4>
       <p>Pick a player from the current season's roster and upload a photo. Images are resized automatically and shown on that player's page for everyone.</p>
       <div class="import-row">
@@ -756,11 +780,11 @@ const LEAGUE = { name: "HALLOWNERS ASSOCIATION" };
    Rules + requiring sign-in below, not from hiding this object.
    ========================================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyB20P7omiUZuZWng3e3aDNVRJall_FB-W8",
-  authDomain: "ha-smb4-stats.firebaseapp.com",
-  projectId: "ha-smb4-stats",
-  storageBucket: "ha-smb4-stats.firebasestorage.app",
-  messagingSenderId: "1:158066787328:web:f014212e54f4a15ae504e5",
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
   appId: "YOUR_APP_ID"
 };
 firebase.initializeApp(firebaseConfig);
@@ -1466,6 +1490,7 @@ function renderAll(){
   if(isAdmin){
     renderAdminTeamEditor();
     renderPhotoPlayerSelect();
+    renderSheetUrlInputs();
   }
 }
 
@@ -1509,6 +1534,87 @@ function renderPhotoPlayerSelect(){
   if(!sel) return;
   const names = Array.from(new Set([...battersArr(), ...pitchersArr()].map(p=>p.name))).sort();
   sel.innerHTML = names.map(n=>`<option value="${escapeAttr(n)}">${n}</option>`).join("");
+}
+
+/* ---------- admin: sync from Google Sheets ---------- */
+
+async function loadSheetUrls(){
+  try{
+    const res = await window.storage.get(`sheetUrls_${state.season}`);
+    return res && res.value ? JSON.parse(res.value) : {};
+  }catch(e){
+    return {};
+  }
+}
+
+async function renderSheetUrlInputs(){
+  const teamsEl = document.getElementById("sheetTeamsUrl");
+  if(!teamsEl) return;
+  const urls = await loadSheetUrls();
+  const battersEl = document.getElementById("sheetBattersUrl");
+  const pitchersEl = document.getElementById("sheetPitchersUrl");
+  // Only fill in fields the admin hasn't already typed into, so a sync in
+  // progress doesn't get overwritten mid-edit.
+  if(!teamsEl.value) teamsEl.value = urls.teams || "";
+  if(battersEl && !battersEl.value) battersEl.value = urls.batters || "";
+  if(pitchersEl && !pitchersEl.value) pitchersEl.value = urls.pitchers || "";
+}
+
+function fetchSheetCsv(url){
+  return new Promise((resolve, reject)=>{
+    Papa.parse(url, {
+      download:true,
+      header:true,
+      dynamicTyping:true,
+      skipEmptyLines:true,
+      complete: results=>{
+        if(results.errors && results.errors.length) return reject(new Error(results.errors[0].message));
+        resolve(results.data);
+      },
+      error: err=> reject(err)
+    });
+  });
+}
+
+async function syncFromSheets(){
+  const statusEl = document.getElementById("sheetSyncStatus");
+  const teamsUrl = document.getElementById("sheetTeamsUrl").value.trim();
+  const battersUrl = document.getElementById("sheetBattersUrl").value.trim();
+  const pitchersUrl = document.getElementById("sheetPitchersUrl").value.trim();
+  if(!teamsUrl && !battersUrl && !pitchersUrl){
+    setStatus(statusEl, "Paste at least one sheet link first.", true);
+    return;
+  }
+  setStatus(statusEl, "Syncing\u2026", false);
+  const synced = [];
+  try{
+    if(teamsUrl){
+      const rows = await fetchSheetCsv(teamsUrl);
+      const arr = teamsArr(); arr.length = 0;
+      rows.forEach(r=> arr.push(mapTeamRow(r)));
+      await saveToStorage(`teams_${state.season}`, arr);
+      synced.push(`${rows.length} teams`);
+    }
+    if(battersUrl){
+      const rows = await fetchSheetCsv(battersUrl);
+      const arr = battersArr(); arr.length = 0;
+      rows.forEach(r=> arr.push(mapBatterRow(r)));
+      await saveToStorage(`batters_${state.season}`, arr);
+      synced.push(`${rows.length} batters`);
+    }
+    if(pitchersUrl){
+      const rows = await fetchSheetCsv(pitchersUrl);
+      const arr = pitchersArr(); arr.length = 0;
+      rows.forEach(r=> arr.push(mapPitcherRow(r)));
+      await saveToStorage(`pitchers_${state.season}`, arr);
+      synced.push(`${rows.length} pitchers`);
+    }
+    await saveToStorage(`sheetUrls_${state.season}`, {teams:teamsUrl, batters:battersUrl, pitchers:pitchersUrl});
+    renderAll();
+    setStatus(statusEl, `Synced ${synced.join(", ")}.`, false);
+  }catch(err){
+    setStatus(statusEl, "Sync failed — make sure each link is published to the web as CSV (File \u2192 Share \u2192 Publish to web). " + (err.message||""), true);
+  }
 }
 
 function downloadCsv(filename, rows){
@@ -1560,6 +1666,40 @@ function parseCsvFile(file, onRows, statusEl, label){
   });
 }
 
+function mapTeamRow(r){
+  return {
+    id:r.id, name:r.name, color:r.color||"#8AA6C1",
+    wins:Number(r.wins)||0, losses:Number(r.losses)||0,
+    streak:r.streak||"-", last10:r.last10||"-",
+    runsFor:Number(r.runsFor)||0, runsAgainst:Number(r.runsAgainst)||0
+  };
+}
+function mapBatterRow(r){
+  return {
+    name:r.name, team:r.team, pos:r.pos||"",
+    g:Number(r.g)||0, ab:Number(r.ab)||0, h:Number(r.h)||0,
+    hr:Number(r.hr)||0, rbi:Number(r.rbi)||0,
+    avg:Number(r.avg)||0, obp:Number(r.obp)||0, slg:Number(r.slg)||0, ops:Number(r.ops)||0,
+    r:Number(r.r)||0, tb:Number(r.tb)||0,
+    "2b":Number(r["2b"])||0, "3b":Number(r["3b"])||0,
+    bb:Number(r.bb)||0, so:Number(r.so)||0,
+    sb:Number(r.sb)||0, cs:Number(r.cs)||0,
+    hbp:Number(r.hbp)||0, sac:Number(r.sac)||0, sf:Number(r.sf)||0, e:Number(r.e)||0
+  };
+}
+function mapPitcherRow(r){
+  return {
+    name:r.name, team:r.team, pos:r.pos||r.role||"",
+    w:Number(r.w)||0, l:Number(r.l)||0, era:Number(r.era)||0,
+    r:Number(r.r)||0, er:Number(r.er)||0, whip:Number(r.whip)||0,
+    g:Number(r.g)||0, gs:Number(r.gs)||0, sv:Number(r.sv)||0,
+    ip:Number(r.ip)||0, h:Number(r.h)||0, avg:Number(r.avg)||0,
+    so:Number(r.so)||0, bb:Number(r.bb)||0, wp:Number(r.wp)||0,
+    hr:Number(r.hr)||0, cg:Number(r.cg)||0, sho:Number(r.sho)||0,
+    hb:Number(r.hb)||0, tbf:Number(r.tbf)||0, np:Number(r.np)||0
+  };
+}
+
 async function saveToStorage(key, value){
   try{
     if(window.storage) await window.storage.set(key, JSON.stringify(value));
@@ -1573,12 +1713,7 @@ document.getElementById("teamsFile").addEventListener("change", e=>{
   parseCsvFile(file, rows=>{
     const arr = teamsArr();
     arr.length = 0;
-    rows.forEach(r=> arr.push({
-      id:r.id, name:r.name, color:r.color||"#8AA6C1",
-      wins:Number(r.wins)||0, losses:Number(r.losses)||0,
-      streak:r.streak||"-", last10:r.last10||"-",
-      runsFor:Number(r.runsFor)||0, runsAgainst:Number(r.runsAgainst)||0
-    }));
+    rows.forEach(r=> arr.push(mapTeamRow(r)));
     saveToStorage(`teams_${state.season}`, arr);
     renderAll();
   }, statusEl, `teams (${SEASONS[state.season].label})`);
@@ -1590,17 +1725,7 @@ document.getElementById("battersFile").addEventListener("change", e=>{
   parseCsvFile(file, rows=>{
     const arr = battersArr();
     arr.length = 0;
-    rows.forEach(r=> arr.push({
-      name:r.name, team:r.team, pos:r.pos||"",
-      g:Number(r.g)||0, ab:Number(r.ab)||0, h:Number(r.h)||0,
-      hr:Number(r.hr)||0, rbi:Number(r.rbi)||0,
-      avg:Number(r.avg)||0, obp:Number(r.obp)||0, slg:Number(r.slg)||0, ops:Number(r.ops)||0,
-      r:Number(r.r)||0, tb:Number(r.tb)||0,
-      "2b":Number(r["2b"])||0, "3b":Number(r["3b"])||0,
-      bb:Number(r.bb)||0, so:Number(r.so)||0,
-      sb:Number(r.sb)||0, cs:Number(r.cs)||0,
-      hbp:Number(r.hbp)||0, sac:Number(r.sac)||0, sf:Number(r.sf)||0, e:Number(r.e)||0
-    }));
+    rows.forEach(r=> arr.push(mapBatterRow(r)));
     saveToStorage(`batters_${state.season}`, arr);
     renderAll();
   }, statusEl, `batters (${SEASONS[state.season].label})`);
@@ -1612,22 +1737,14 @@ document.getElementById("pitchersFile").addEventListener("change", e=>{
   parseCsvFile(file, rows=>{
     const arr = pitchersArr();
     arr.length = 0;
-    rows.forEach(r=> arr.push({
-      name:r.name, team:r.team, pos:r.pos||r.role||"",
-      w:Number(r.w)||0, l:Number(r.l)||0, era:Number(r.era)||0,
-      r:Number(r.r)||0, er:Number(r.er)||0, whip:Number(r.whip)||0,
-      g:Number(r.g)||0, gs:Number(r.gs)||0, sv:Number(r.sv)||0,
-      ip:Number(r.ip)||0, h:Number(r.h)||0, avg:Number(r.avg)||0,
-      so:Number(r.so)||0, bb:Number(r.bb)||0, wp:Number(r.wp)||0,
-      hr:Number(r.hr)||0, cg:Number(r.cg)||0, sho:Number(r.sho)||0,
-      hb:Number(r.hb)||0, tbf:Number(r.tbf)||0, np:Number(r.np)||0
-    }));
+    rows.forEach(r=> arr.push(mapPitcherRow(r)));
     saveToStorage(`pitchers_${state.season}`, arr);
     renderAll();
   }, statusEl, `pitchers (${SEASONS[state.season].label})`);
 });
 
 document.getElementById("adminTeamSave").addEventListener("click", saveAdminTeamEditor);
+document.getElementById("sheetSyncBtn").addEventListener("click", syncFromSheets);
 
 document.getElementById("photoFile").addEventListener("change", async e=>{
   const file = e.target.files[0]; if(!file) return;
