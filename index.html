@@ -232,35 +232,28 @@
   /* ---------- sticky player-name column (players + attributes tables) ---------- */
   #playersTable th:first-child,
   #playersTable td:first-child,
-  #attributesHitTable th:first-child,
-  #attributesHitTable td:first-child,
-  #attributesPitTable th:first-child,
-  #attributesPitTable td:first-child{
+  #attributesTable th:first-child,
+  #attributesTable td:first-child{
     position:sticky;
     left:0;
     z-index:1;
   }
   #playersTable thead th:first-child,
-  #attributesHitTable thead th:first-child,
-  #attributesPitTable thead th:first-child{
+  #attributesTable thead th:first-child{
     z-index:3;
     background:var(--cream);
   }
   #playersTable thead th:first-child.sorted,
-  #attributesHitTable thead th:first-child.sorted,
-  #attributesPitTable thead th:first-child.sorted{background:var(--gold);}
+  #attributesTable thead th:first-child.sorted{background:var(--gold);}
   #playersTable tbody td:first-child,
-  #attributesHitTable tbody td:first-child,
-  #attributesPitTable tbody td:first-child{
+  #attributesTable tbody td:first-child{
     background:var(--navy-800);
     box-shadow:1px 0 0 var(--hairline);
   }
   #playersTable tbody tr:nth-child(even) td:first-child,
-  #attributesHitTable tbody tr:nth-child(even) td:first-child,
-  #attributesPitTable tbody tr:nth-child(even) td:first-child{background:#152A4A;}
+  #attributesTable tbody tr:nth-child(even) td:first-child{background:#152A4A;}
   #playersTable tbody tr:hover td:first-child,
-  #attributesHitTable tbody tr:hover td:first-child,
-  #attributesPitTable tbody tr:hover td:first-child{background:var(--navy-700);}
+  #attributesTable tbody tr:hover td:first-child{background:var(--navy-700);}
   .ovr-badge{
     display:inline-block;
     font-family:'IBM Plex Mono',monospace;
@@ -787,7 +780,7 @@
     <div class="leader-grid" id="leaderGrid"></div>
 
     <h3 class="sub-title">Full Stats</h3>
-    <div class="toggle-row">
+    <div class="toggle-row" id="statToggleRow">
       <button class="toggle-btn active" data-stat-view="batting">Batting</button>
       <button class="toggle-btn" data-stat-view="pitching">Pitching</button>
     </div>
@@ -807,26 +800,20 @@
   <section class="panel" id="panel-attributes">
     <h2 class="section-title">Player Attributes</h2>
     <p style="color:var(--cream-dim); font-size:13px; margin-top:-8px;">In-game ratings, chemistry, and traits for the current roster.</p>
+    <div class="toggle-row" id="attrToggleRow">
+      <button class="toggle-btn active" data-attr-view="hitters">Hitters</button>
+      <button class="toggle-btn" data-attr-view="pitchers">Pitchers</button>
+    </div>
     <div class="attr-pager">
       <button class="attr-pager-arrow" id="attrPagePrev" aria-label="Previous page">&#9664;</button>
       <div class="attr-pager-dots" id="attrPageDots"></div>
       <button class="attr-pager-arrow" id="attrPageNext" aria-label="Next page">&#9654;</button>
     </div>
-    <h3 class="sub-title">Hitters</h3>
-    <div class="table-scroll-top" id="attributesHitScrollTop"><div id="attributesHitScrollTopInner"></div></div>
-    <div class="table-scroll-bottom" id="attributesHitScrollBottom">
-    <table id="attributesHitTable">
-      <thead><tr id="attributesHitHeadRow"></tr></thead>
-      <tbody id="attributesHitBody"></tbody>
-    </table>
-    </div>
-
-    <h3 class="sub-title">Pitchers</h3>
-    <div class="table-scroll-top" id="attributesPitScrollTop"><div id="attributesPitScrollTopInner"></div></div>
-    <div class="table-scroll-bottom" id="attributesPitScrollBottom">
-    <table id="attributesPitTable">
-      <thead><tr id="attributesPitHeadRow"></tr></thead>
-      <tbody id="attributesPitBody"></tbody>
+    <div class="table-scroll-top" id="attributesScrollTop"><div id="attributesScrollTopInner"></div></div>
+    <div class="table-scroll-bottom" id="attributesScrollBottom">
+    <table id="attributesTable">
+      <thead><tr id="attributesHeadRow"></tr></thead>
+      <tbody id="attributesBody"></tbody>
     </table>
     </div>
   </section>
@@ -1447,124 +1434,193 @@ function arsenalCell(list){
   return list.map(p=>`<span class="pitch-tag">${p}</span>`).join("");
 }
 
-// Standard field order used to assign lineup slots (1/C, 2/1B, ... ) —
-// whichever rostered player at a position has the best OVR starts; the rest
-// fall to the bench. Pitchers are grouped into ROT (starters) / PEN (relief).
-const FIELD_ORDER = ["C","1B","2B","3B","SS","LF","CF","RF","DH"];
+// Pitcher detection fallback for attribute rows that don't otherwise
+// appear in this season's batting or pitching stat arrays.
+const PITCHER_POS_RE = /SP|RP|CP/;
 
+// Two-way players (rostered as both a batter and a pitcher this season) show
+// up on both the Hitters and Pitchers tables — membership is driven by
+// whichever stat arrays actually have an entry for that player, not just
+// their attributes "pos" field, so it stays accurate for anyone splitting
+// time between roles.
 function attributesGroups(){
   const rows = attributesArr();
-  const byPos = {}, bench = [], rot = [], pen = [];
+  const batterNames = new Set(battersArr().map(b=>b.name));
+  const pitcherNames = new Set(pitchersArr().map(p=>p.name));
+  const hitters = [], pitchers = [];
   rows.forEach(p=>{
-    if(FIELD_ORDER.includes(p.pos)) (byPos[p.pos] = byPos[p.pos]||[]).push(p);
-    else if(p.pos.includes("SP")) rot.push(p);
-    else if(p.pos.includes("RP") || p.pos.includes("CP")) pen.push(p);
-    else bench.push(p);
+    const inBatters = batterNames.has(p.name);
+    const inPitchers = pitcherNames.has(p.name);
+    const fallbackPitcher = !inBatters && !inPitchers && PITCHER_POS_RE.test(p.pos||"");
+    if(inBatters || (!inBatters && !inPitchers && !fallbackPitcher)) hitters.push(p);
+    if(inPitchers || fallbackPitcher) pitchers.push(p);
   });
-  const hitters = [];
-  FIELD_ORDER.forEach(pos=>{
-    const list = (byPos[pos]||[]).slice().sort((a,b)=> tierRank(b.ovr)-tierRank(a.ovr));
-    if(list.length){
-      hitters.push(list[0]);
-      list.slice(1).forEach(p=> bench.push(p));
-    }
-  });
-  bench.sort((a,b)=> tierRank(b.ovr)-tierRank(a.ovr));
-  bench.forEach(p=> hitters.push(p));
-  rot.sort((a,b)=> tierRank(b.ovr)-tierRank(a.ovr));
-  pen.sort((a,b)=> tierRank(b.ovr)-tierRank(a.ovr));
-  const pitchers = [...rot, ...pen];
+  hitters.sort((a,b)=> tierRank(b.ovr)-tierRank(a.ovr));
+  pitchers.sort((a,b)=> tierRank(b.ovr)-tierRank(a.ovr));
   return { hitters, pitchers };
 }
 
+// Each page defines the columns shown for that view. "Pitching" is only
+// ever shown while viewing the Pitchers table (see visibleAttrPages) since
+// those fields are blank for pure position players.
 const ATTR_PAGES = [
-  { title:"Bio",       heads:["Name","OVR","P. Pos","S. Pos","Age","Bat","Thr"] },
-  { title:"Ratings",   heads:["Name","OVR","POW","CON","SPD","FLD","ARM"] },
-  { title:"Pitching",  heads:["Name","OVR","VEL","JNK","ACC","Arsenal"] },
-  { title:"Chemistry", heads:["Name","OVR","Chem","Trait 1","Trait 2"] },
+  { title:"Bio", cols:[
+    {key:"name", label:"Name"},
+    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
+    {key:"pos", label:"P. Pos"},
+    {key:"pos2", label:"S. Pos", cellClass:"pos2-cell",
+      sortVal:p=> (p.pos2 && p.pos2!=="--") ? p.pos2 : "",
+      render:p=> (p.pos2 && p.pos2!=="--") ? p.pos2 : "&ndash;"},
+    {key:"age", label:"Age"},
+    {key:"bat", label:"Bat"},
+    {key:"thr", label:"Thr"},
+  ]},
+  { title:"Ratings", cols:[
+    {key:"name", label:"Name"},
+    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
+    {key:"pow", label:"POW", render:p=>ratingCell(p.pow)},
+    {key:"con", label:"CON", render:p=>ratingCell(p.con)},
+    {key:"spd", label:"SPD", render:p=>ratingCell(p.spd)},
+    {key:"fld", label:"FLD", render:p=>ratingCell(p.fld)},
+    {key:"arm", label:"ARM", render:p=>ratingCell(p.arm)},
+  ]},
+  { title:"Pitching", cols:[
+    {key:"name", label:"Name"},
+    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
+    {key:"vel", label:"VEL", render:p=>ratingCell(p.vel)},
+    {key:"jnk", label:"JNK", render:p=>ratingCell(p.jnk)},
+    {key:"acc", label:"ACC", render:p=>ratingCell(p.acc)},
+    {key:"arsenal", label:"Arsenal", sortVal:p=>(p.arsenal||[]).length, render:p=>arsenalCell(p.arsenal)},
+  ]},
+  { title:"Chemistry", cols:[
+    {key:"name", label:"Name"},
+    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
+    {key:"chem", label:"Chem", render:p=>chemBadge(p.chem)},
+    {key:"trait1", label:"Trait 1", render:p=>traitPill(p.trait1, p.trait1Tier)},
+    {key:"trait2", label:"Trait 2", render:p=>traitPill(p.trait2, p.trait2Tier)},
+  ]},
 ];
-let attrPage = 0;
+
+let currentAttrView = "hitters";
+let attrPageTitle = "Bio";
+let attrSort = {key:null, dir:1};
+
+function visibleAttrPages(){
+  return currentAttrView==="pitchers" ? ATTR_PAGES : ATTR_PAGES.filter(p=>p.title!=="Pitching");
+}
+function activeAttrPageIndex(){
+  const idx = visibleAttrPages().findIndex(p=>p.title===attrPageTitle);
+  return idx<0 ? 0 : idx;
+}
+function activeAttrPage(){
+  return visibleAttrPages()[activeAttrPageIndex()];
+}
 
 function renderAttributesPager(){
-  document.getElementById("attrPageDots").innerHTML = ATTR_PAGES.map((p,i)=>
-    `<button class="attr-page-dot ${i===attrPage?'active':''}" data-page="${i}" title="${p.title}" aria-label="${p.title}"></button>`
+  const pages = visibleAttrPages();
+  const idx = activeAttrPageIndex();
+  document.getElementById("attrPageDots").innerHTML = pages.map((p,i)=>
+    `<button class="attr-page-dot ${i===idx?'active':''}" data-page="${i}" title="${p.title}" aria-label="${p.title}"></button>`
   ).join("");
-  document.getElementById("attrPagePrev").disabled = attrPage===0;
-  document.getElementById("attrPageNext").disabled = attrPage===ATTR_PAGES.length-1;
+  document.getElementById("attrPagePrev").disabled = idx===0;
+  document.getElementById("attrPageNext").disabled = idx===pages.length-1;
 }
 
 function renderAttributesHead(){
-  const headCells = ATTR_PAGES[attrPage].heads.map(h=>`<th>${h}</th>`).join("");
-  document.getElementById("attributesHitHeadRow").innerHTML = headCells;
-  document.getElementById("attributesPitHeadRow").innerHTML = headCells;
+  const cols = activeAttrPage().cols;
+  document.getElementById("attributesHeadRow").innerHTML = cols.map(c=>
+    `<th data-key="${c.key}" class="${attrSort.key===c.key?'sorted':''}">${c.label}</th>`
+  ).join("");
 }
 
-function attrRowCells(p){
-  const nameCell = `<td><a class="player-link" data-name="${escapeAttr(p.name)}">${p.name}</a></td>`;
-  const ovrCell = `<td>${ovrBadge(p.ovr)}</td>`;
-  let cells;
-  if(attrPage===0){
-    cells = `
-      <td>${p.pos}</td>
-      <td class="pos2-cell">${p.pos2 && p.pos2!=="--" ? p.pos2 : "&ndash;"}</td>
-      <td>${p.age}</td>
-      <td>${p.bat}</td>
-      <td>${p.thr}</td>`;
-  } else if(attrPage===1){
-    cells = ["pow","con","spd","fld","arm"].map(k=>`<td>${ratingCell(p[k])}</td>`).join("");
-  } else if(attrPage===2){
-    cells = ["vel","jnk","acc"].map(k=>`<td>${ratingCell(p[k])}</td>`).join("") + `<td>${arsenalCell(p.arsenal)}</td>`;
-  } else {
-    cells = `
-      <td>${chemBadge(p.chem)}</td>
-      <td>${traitPill(p.trait1, p.trait1Tier)}</td>
-      <td>${traitPill(p.trait2, p.trait2Tier)}</td>`;
-  }
-  return `<tr>${nameCell}${ovrCell}${cells}</tr>`;
+function attrCellHtml(p, col){
+  if(col.key==="name") return `<td><a class="player-link" data-name="${escapeAttr(p.name)}">${p.name}</a></td>`;
+  if(col.render) return `<td${col.cellClass?` class="${col.cellClass}"`:""}>${col.render(p)}</td>`;
+  const v = p[col.key];
+  return `<td>${(v===null||v===undefined||v==="") ? "&ndash;" : v}</td>`;
 }
 
-function renderAttrTableBody(tbodyId, list){
-  const tbody = document.getElementById(tbodyId);
-  if(!list.length){
-    tbody.innerHTML = `<tr><td colspan="${ATTR_PAGES[attrPage].heads.length}" class="no-data-note">No attribute data on file for this season yet.</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = list.map(p=> attrRowCells(p)).join("");
+function sortAttrData(data, col, dir){
+  const getVal = col.sortVal || (p=>p[col.key]);
+  return [...data].sort((a,b)=>{
+    const av = getVal(a), bv = getVal(b);
+    const aBlank = av===null || av===undefined || av==="";
+    const bBlank = bv===null || bv===undefined || bv==="";
+    if(aBlank && bBlank) return 0;
+    if(aBlank) return 1;
+    if(bBlank) return -1;
+    if(typeof av==="string" || typeof bv==="string") return String(av).localeCompare(String(bv))*dir;
+    return (av-bv)*dir;
+  });
 }
 
 function renderAttributesBody(){
   const { hitters, pitchers } = attributesGroups();
-  renderAttrTableBody("attributesHitBody", hitters);
-  renderAttrTableBody("attributesPitBody", pitchers);
+  let data = currentAttrView==="pitchers" ? pitchers : hitters;
+  const cols = activeAttrPage().cols;
+  if(attrSort.key){
+    const col = cols.find(c=>c.key===attrSort.key);
+    if(col) data = sortAttrData(data, col, attrSort.dir);
+  }
+  const tbody = document.getElementById("attributesBody");
+  if(!data.length){
+    tbody.innerHTML = `<tr><td colspan="${cols.length}" class="no-data-note">No ${currentAttrView} attribute data on file for this season yet.</td></tr>`;
+    syncAttributesScrollTopWidth();
+    return;
+  }
+  tbody.innerHTML = data.map(p=>`<tr>${cols.map(c=>attrCellHtml(p,c)).join("")}</tr>`).join("");
   syncAttributesScrollTopWidth();
 }
 
 function goToAttrPage(i){
-  attrPage = Math.max(0, Math.min(ATTR_PAGES.length-1, i));
+  const pages = visibleAttrPages();
+  const idx = Math.max(0, Math.min(pages.length-1, i));
+  attrPageTitle = pages[idx].title;
+  attrSort = {key:null, dir:1};
   renderAttributesPager();
   renderAttributesHead();
   renderAttributesBody();
 }
 
-document.getElementById("attrPagePrev").addEventListener("click", ()=> goToAttrPage(attrPage-1));
-document.getElementById("attrPageNext").addEventListener("click", ()=> goToAttrPage(attrPage+1));
+document.getElementById("attrPagePrev").addEventListener("click", ()=> goToAttrPage(activeAttrPageIndex()-1));
+document.getElementById("attrPageNext").addEventListener("click", ()=> goToAttrPage(activeAttrPageIndex()+1));
 document.getElementById("attrPageDots").addEventListener("click", e=>{
   const btn = e.target.closest(".attr-page-dot");
   if(!btn) return;
   goToAttrPage(Number(btn.dataset.page));
 });
 
+document.getElementById("attrToggleRow").addEventListener("click", e=>{
+  const btn = e.target.closest(".toggle-btn");
+  if(!btn) return;
+  document.querySelectorAll("#attrToggleRow .toggle-btn").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  currentAttrView = btn.dataset.attrView;
+  attrSort = {key:null, dir:1};
+  renderAttributesPager();
+  renderAttributesHead();
+  renderAttributesBody();
+});
+
+document.getElementById("attributesHeadRow").addEventListener("click", e=>{
+  const th = e.target.closest("th");
+  if(!th) return;
+  const key = th.dataset.key;
+  attrSort.dir = (attrSort.key===key) ? -attrSort.dir : -1;
+  attrSort.key = key;
+  renderAttributesHead();
+  renderAttributesBody();
+});
+
 function syncAttributesScrollTopWidth(){
-  [["attributesHitTable","attributesHitScrollTopInner"],["attributesPitTable","attributesPitScrollTopInner"]].forEach(([tableId,innerId])=>{
-    const table = document.getElementById(tableId);
-    const inner = document.getElementById(innerId);
-    if(table && inner) inner.style.width = table.scrollWidth + "px";
-  });
+  const table = document.getElementById("attributesTable");
+  const inner = document.getElementById("attributesScrollTopInner");
+  if(table && inner) inner.style.width = table.scrollWidth + "px";
 }
 
-function initScrollSync(topId, bottomId){
-  const top = document.getElementById(topId);
-  const bottom = document.getElementById(bottomId);
+(function initAttributesScrollSync(){
+  const top = document.getElementById("attributesScrollTop");
+  const bottom = document.getElementById("attributesScrollBottom");
   if(!top || !bottom) return;
   let syncing = false;
   top.addEventListener("scroll", ()=>{
@@ -1577,10 +1633,8 @@ function initScrollSync(topId, bottomId){
     top.scrollLeft = bottom.scrollLeft;
     syncing = false;
   });
-}
-initScrollSync("attributesHitScrollTop", "attributesHitScrollBottom");
-initScrollSync("attributesPitScrollTop", "attributesPitScrollBottom");
-window.addEventListener("resize", syncAttributesScrollTopWidth);
+  window.addEventListener("resize", syncAttributesScrollTopWidth);
+})();
 
 
 function renderGames(){
@@ -1974,7 +2028,8 @@ document.getElementById("seasonSelect").addEventListener("change", e=>{
   state.season = e.target.value;
   standingsSort = {key:null, dir:1};
   playersSort = {key:null, dir:1};
-  attrPage = 0;
+  attrPageTitle = "Bio";
+  attrSort = {key:null, dir:1};
   renderAll();
 });
 
@@ -2026,9 +2081,9 @@ document.querySelector("#standingsTable thead").addEventListener("click", e=>{
   `).join("");
 });
 
-document.querySelectorAll(".toggle-btn").forEach(btn=>{
+document.querySelectorAll("#statToggleRow .toggle-btn").forEach(btn=>{
   btn.addEventListener("click", ()=>{
-    document.querySelectorAll(".toggle-btn").forEach(b=>b.classList.remove("active"));
+    document.querySelectorAll("#statToggleRow .toggle-btn").forEach(b=>b.classList.remove("active"));
     btn.classList.add("active");
     currentStatView = btn.dataset.statView;
     playersSort = {key:null, dir:1};
