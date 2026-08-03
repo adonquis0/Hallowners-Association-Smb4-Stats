@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HA Smb4 Stats</title>
+<title>League Reference</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -614,7 +614,6 @@
 <main>
   <section class="panel active" id="panel-standings">
     <h2 class="section-title">Standings</h2>
-    <div class="table-scroll-bottom">
     <table id="standingsTable">
       <thead>
         <tr>
@@ -632,7 +631,6 @@
       </thead>
       <tbody></tbody>
     </table>
-    </div>
   </section>
 
   <section class="panel" id="panel-players">
@@ -646,6 +644,10 @@
       <button class="toggle-btn active" data-stat-view="batting">Batting</button>
       <button class="toggle-btn" data-stat-view="pitching">Pitching</button>
     </div>
+    <label class="career-toggle" style="display:flex; align-items:center; gap:8px; margin-bottom:14px; font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--cream-dim); cursor:pointer;">
+      <input type="checkbox" id="careerStatsCheckbox">
+      Career stats (all seasons)
+    </label>
     <div class="table-scroll-top" id="playersScrollTop"><div id="playersScrollTopInner"></div></div>
     <div class="table-scroll-bottom" id="playersScrollBottom">
     <table id="playersTable">
@@ -947,6 +949,30 @@ function pitchersArr(){ return SEASONS[state.season].pitchers; }
 function gamesArr(){ return SEASONS[state.season].games; }
 function awardsArr(){ return SEASONS[state.season].awards; }
 
+// Career (all-seasons) rollups for the Full Stats table's career checkbox.
+// Relies on getPlayerCareer()/careerBattingTotals()/careerPitchingTotals(),
+// defined further down — safe since these are only ever called at render time.
+function careerBattersArr(){
+  const names = new Set();
+  SEASON_IDS.forEach(id=> SEASONS[id].batters.forEach(b=> names.add(b.name)));
+  return [...names].map(name=>{
+    const { battingRows } = getPlayerCareer(name);
+    const totals = careerBattingTotals(battingRows);
+    const latest = battingRows[battingRows.length-1];
+    return { name, team:latest.team, pos:latest.pos, ...totals };
+  });
+}
+function careerPitchersArr(){
+  const names = new Set();
+  SEASON_IDS.forEach(id=> SEASONS[id].pitchers.forEach(p=> names.add(p.name)));
+  return [...names].map(name=>{
+    const { pitchingRows } = getPlayerCareer(name);
+    const totals = careerPitchingTotals(pitchingRows);
+    const latest = pitchingRows[pitchingRows.length-1];
+    return { name, team:latest.team, pos:latest.pos, ...totals };
+  });
+}
+
 /* =========================================================================
    RENDER
    ========================================================================= */
@@ -1037,8 +1063,10 @@ function renderLeaders(){
     top(qb,"hr","HR"),
     top(qb,"rbi","RBI"),
     top(qb,"ops","OPS", v=>v.toFixed(3)),
+    top(qb,"sb","STOLEN BASES"),
     top(qp,"so","STRIKEOUTS"),
     top(qp,"era","ERA", v=>v.toFixed(2), true),
+    top(qp,"whip","WHIP", v=>v.toFixed(2), true),
   ];
   document.getElementById("leaderGrid").innerHTML = cards.map(c=>`
     <div class="leader-card">
@@ -1079,6 +1107,7 @@ const PITCHING_COLS = [
 ];
 
 let currentStatView = "batting";
+let showCareerStats = false;
 let playersSort = {key:null, dir:1};
 
 function escapeAttr(s){ return String(s).replace(/"/g,"&quot;"); }
@@ -1092,7 +1121,9 @@ function renderPlayersHead(){
 
 function renderPlayersBody(){
   const cols = currentStatView==="batting" ? BATTING_COLS : PITCHING_COLS;
-  let data = [...(currentStatView==="batting"?battersArr():pitchersArr())];
+  let data = showCareerStats
+    ? [...(currentStatView==="batting"?careerBattersArr():careerPitchersArr())]
+    : [...(currentStatView==="batting"?battersArr():pitchersArr())];
   if(playersSort.key){
     data.sort((a,b)=>{
       const av=a[playersSort.key], bv=b[playersSort.key];
@@ -1102,7 +1133,8 @@ function renderPlayersBody(){
   }
   const tbody = document.querySelector("#playersTable tbody");
   if(!data.length){
-    tbody.innerHTML = `<tr><td colspan="${cols.length}" class="no-data-note">No ${currentStatView} stats on file for this season yet — import a CSV on the Import Data tab.</td></tr>`;
+    const scopeNote = showCareerStats ? "on file yet" : "on file for this season yet — import a CSV on the Import Data tab";
+    tbody.innerHTML = `<tr><td colspan="${cols.length}" class="no-data-note">No ${currentStatView} stats ${scopeNote}.</td></tr>`;
     return;
   }
   tbody.innerHTML = data.map(p=>`
@@ -1481,7 +1513,6 @@ document.getElementById("tabs").addEventListener("click", e=>{
   document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
   btn.classList.add("active");
   document.getElementById("panel-"+btn.dataset.tab).classList.add("active");
-  if(btn.dataset.tab === "players") syncPlayersScrollTopWidth();
 });
 
 document.querySelector("#standingsTable thead").addEventListener("click", e=>{
@@ -1515,6 +1546,12 @@ document.querySelectorAll(".toggle-btn").forEach(btn=>{
     renderPlayersHead();
     renderPlayersBody();
   });
+});
+
+document.getElementById("careerStatsCheckbox").addEventListener("change", e=>{
+  showCareerStats = e.target.checked;
+  playersSort = {key:null, dir:1};
+  renderPlayersBody();
 });
 
 document.getElementById("playersHeadRow").addEventListener("click", e=>{
