@@ -229,24 +229,49 @@
     overflow-x:auto;
   }
 
-  /* ---------- sticky player-name column (players table) ---------- */
+  /* ---------- sticky player-name column (players + attributes tables) ---------- */
   #playersTable th:first-child,
-  #playersTable td:first-child{
+  #playersTable td:first-child,
+  #attributesTable th:first-child,
+  #attributesTable td:first-child{
     position:sticky;
     left:0;
     z-index:1;
   }
-  #playersTable thead th:first-child{
+  #playersTable thead th:first-child,
+  #attributesTable thead th:first-child{
     z-index:3;
     background:var(--cream);
   }
-  #playersTable thead th:first-child.sorted{background:var(--gold);}
-  #playersTable tbody td:first-child{
+  #playersTable thead th:first-child.sorted,
+  #attributesTable thead th:first-child.sorted{background:var(--gold);}
+  #playersTable tbody td:first-child,
+  #attributesTable tbody td:first-child{
     background:var(--navy-800);
     box-shadow:1px 0 0 var(--hairline);
   }
-  #playersTable tbody tr:nth-child(even) td:first-child{background:#152A4A;}
-  #playersTable tbody tr:hover td:first-child{background:var(--navy-700);}
+  #playersTable tbody tr:nth-child(even) td:first-child,
+  #attributesTable tbody tr:nth-child(even) td:first-child{background:#152A4A;}
+  #playersTable tbody tr:hover td:first-child,
+  #attributesTable tbody tr:hover td:first-child{background:var(--navy-700);}
+  .ovr-badge{
+    display:inline-block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    font-weight:700;
+    padding:2px 7px;
+    border-radius:2px;
+    background:var(--gold);
+    color:var(--navy-950);
+  }
+
+  /* ---------- standings scrolls horizontally on narrow screens ---------- */
+  .table-scroll-x{
+    overflow-x:auto;
+  }
+  @media (max-width:640px){
+    .table-scroll-x table{ min-width:640px; }
+  }
   .team-tag{
     display:inline-block;
     font-family:'IBM Plex Mono',monospace;
@@ -606,6 +631,7 @@
 <nav class="tabs" id="tabs">
   <button class="tab-btn active" data-tab="standings">Standings</button>
   <button class="tab-btn" data-tab="players">Players</button>
+  <button class="tab-btn" data-tab="attributes">Attributes</button>
   <button class="tab-btn" data-tab="boxscores">Box Scores</button>
   <button class="tab-btn" data-tab="history">History &amp; Awards</button>
   <button class="tab-btn" data-tab="import" id="adminTabBtn">Admin</button>
@@ -614,6 +640,7 @@
 <main>
   <section class="panel active" id="panel-standings">
     <h2 class="section-title">Standings</h2>
+    <div class="table-scroll-x">
     <table id="standingsTable">
       <thead>
         <tr>
@@ -631,6 +658,7 @@
       </thead>
       <tbody></tbody>
     </table>
+    </div>
   </section>
 
   <section class="panel" id="panel-players">
@@ -652,6 +680,18 @@
     <div class="table-scroll-bottom" id="playersScrollBottom">
     <table id="playersTable">
       <thead><tr id="playersHeadRow"></tr></thead>
+      <tbody></tbody>
+    </table>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-attributes">
+    <h2 class="section-title">Player Attributes</h2>
+    <p style="color:var(--cream-dim); font-size:13px; margin-top:-8px;">In-game ratings, chemistry, and traits for the current roster.</p>
+    <div class="table-scroll-top" id="attributesScrollTop"><div id="attributesScrollTopInner"></div></div>
+    <div class="table-scroll-bottom" id="attributesScrollBottom">
+    <table id="attributesTable">
+      <thead><tr id="attributesHeadRow"></tr></thead>
       <tbody></tbody>
     </table>
     </div>
@@ -898,6 +938,30 @@ const SEASONS = {
       { name:"Kanye West",           team:"CRW", pos:"CP",    w:0, l:1, era:54.00, r:2,  er:2,  whip:6.00, g:1, gs:0, sv:0, ip:0.1,  h:2,  avg:.667, so:0,  bb:0, wp:0, hr:0, cg:0, sho:0, hb:0, tbf:3,   np:10  },
       { name:"Revenant Horror",      team:"CRW", pos:"CP",    w:1, l:0, era:6.14,  r:6,  er:5,  whip:2.32, g:8, gs:0, sv:1, ip:7.1,  h:15, avg:.385, so:4,  bb:2, wp:0, hr:0, cg:0, sho:0, hb:0, tbf:41,  np:107 },
     ],
+    attributes: [
+      { name:"Coolude 951", team:"CRW", pos:"SS", pos2:"2B", pow:59, con:84, spd:45, fld:76, arm:80, bat:"RIGHT", thr:"LEFT", age:26, chem:"Crafty", trait1:"Bulldog Mentality", trait2:"Fielding Wizard", ovr:"B" },
+      { name:"3 Batters Away", team:"CRW", pos:"C", pos2:"1B", pow:52, con:84, spd:40, fld:47, arm:72, bat:"RIGHT", thr:"RIGHT", age:34, chem:"Scholar", trait1:"Two-Strike K", trait2:"Bunter", ovr:"C+" },
+      { name:"Diddy Foid", team:"CRW", pos:"CF", pos2:"RF", pow:78, con:83, spd:68, fld:77, arm:45, bat:"RIGHT", thr:"RIGHT", age:32, chem:"Fiery", trait1:"RISP Specialist", trait2:"Contact Hitter", ovr:"B" },
+      { name:"Screw Dismal", team:"CRW", pos:"2B", pos2:"SS", pow:79, con:88, spd:44, fld:58, arm:56, bat:"LEFT", thr:"RIGHT", age:34, chem:"Bulldog", trait1:"Bunter", trait2:"Composed", ovr:"B-" },
+      { name:"Gaia Construct", team:"CRW", pos:"1B", pos2:"3B", pow:47, con:67, spd:55, fld:49, arm:49, bat:"RIGHT", thr:"RIGHT", age:29, chem:"Fiery", trait1:"Bunter", trait2:"Iron Glove", ovr:"C" },
+      { name:"False Blud", team:"CRW", pos:"3B", pos2:"1B", pow:51, con:69, spd:73, fld:69, arm:78, bat:"LEFT", thr:"RIGHT", age:32, chem:"Rocket", trait1:"Slugger", trait2:"Two-Strike K", ovr:"B" },
+      { name:"Sniped by lukep50", team:"CRW", pos:"RF", pos2:"CF", pow:52, con:80, spd:87, fld:61, arm:62, bat:"LEFT", thr:"RIGHT", age:30, chem:"Scholar", trait1:"Slugger", trait2:"Cannon Arm", ovr:"B" },
+      { name:"Thirty Virus", team:"CRW", pos:"SP", pos2:"RP", pow:35, con:35, spd:46, fld:59, arm:71, bat:"LEFT", thr:"RIGHT", age:30, chem:"Fiery", trait1:"RISP Specialist", trait2:"Fastball Fanatic", ovr:"C-" },
+      { name:"I Show Speed", team:"CRW", pos:"CF", pos2:"LF", pow:60, con:58, spd:52, fld:63, arm:65, bat:"RIGHT", thr:"LEFT", age:34, chem:"Wallflower", trait1:"Rally Starter", trait2:"Speed Demon", ovr:"C+" },
+      { name:"Go Eat Dinner", team:"CRW", pos:"SS", pos2:"2B", pow:59, con:80, spd:80, fld:76, arm:74, bat:"RIGHT", thr:"RIGHT", age:34, chem:"Fiery", trait1:"Utility", trait2:"Slugger", ovr:"B+" },
+      { name:"Sigma Move", team:"CRW", pos:"C", pos2:"1B", pow:50, con:79, spd:47, fld:55, arm:52, bat:"LEFT", thr:"RIGHT", age:29, chem:"Crafty", trait1:"Speed Demon", trait2:"Bunter", ovr:"C" },
+      { name:"Kanye West", team:"CRW", pos:"CP", pos2:"1B", pow:36, con:29, spd:37, fld:50, arm:71, bat:"LEFT", thr:"LEFT", age:30, chem:"Bulldog", trait1:"Bulldog Mentality", trait2:"Contact Hitter", ovr:"D" },
+      { name:"Bonzo Mask", team:"CRW", pos:"1B", pos2:"C", pow:57, con:90, spd:63, fld:70, arm:55, bat:"LEFT", thr:"RIGHT", age:29, chem:"Crafty", trait1:"Fastball Fanatic", trait2:"Contact Hitter", ovr:"B-" },
+      { name:"Fresh Man", team:"CRW", pos:"SP", pos2:"RP", pow:40, con:35, spd:32, fld:46, arm:76, bat:"RIGHT", thr:"RIGHT", age:31, chem:"Bulldog", trait1:"Cannon Arm", trait2:"Distractor", ovr:"C-" },
+      { name:"Shadow Assassin", team:"CRW", pos:"RP", pos2:"CP", pow:32, con:28, spd:30, fld:48, arm:82, bat:"RIGHT", thr:"RIGHT", age:33, chem:"Rocket", trait1:"Utility", trait2:"Rally Starter", ovr:"D" },
+      { name:"Lucius Rokesmith", team:"CRW", pos:"SP", pos2:"--", pow:43, con:49, spd:39, fld:58, arm:73, bat:"RIGHT", thr:"LEFT", age:26, chem:"Laid-back", trait1:"Iron Glove", trait2:"Composed", ovr:"C" },
+      { name:"Patrick Pass", team:"CRW", pos:"SP", pos2:"--", pow:39, con:36, spd:51, fld:68, arm:87, bat:"LEFT", thr:"RIGHT", age:32, chem:"Fiery", trait1:"Fielding Wizard", trait2:"Bulldog Mentality", ovr:"C" },
+      { name:"Frank Ocean", team:"CRW", pos:"SP", pos2:"--", pow:26, con:41, spd:34, fld:66, arm:70, bat:"LEFT", thr:"RIGHT", age:32, chem:"Wallflower", trait1:"Composed", trait2:"Iron Glove", ovr:"C-" },
+      { name:"Quandale Dingle", team:"CRW", pos:"SP", pos2:"RP", pow:25, con:33, spd:33, fld:58, arm:87, bat:"LEFT", thr:"RIGHT", age:31, chem:"Rocket", trait1:"Composed", trait2:"Distractor", ovr:"C-" },
+      { name:"Ouro The Omniscient", team:"CRW", pos:"SP", pos2:"RP", pow:45, con:34, spd:43, fld:49, arm:75, bat:"RIGHT", thr:"LEFT", age:26, chem:"Laid-back", trait1:"Composed", trait2:"Two-Strike K", ovr:"C-" },
+      { name:"Down in Ohio", team:"CRW", pos:"RP", pos2:"--", pow:28, con:29, spd:59, fld:52, arm:70, bat:"LEFT", thr:"LEFT", age:29, chem:"Scholar", trait1:"Distractor", trait2:"Fielding Wizard", ovr:"C-" },
+      { name:"Revenant Horror", team:"CRW", pos:"CP", pos2:"RP", pow:31, con:27, spd:56, fld:53, arm:91, bat:"RIGHT", thr:"LEFT", age:33, chem:"Crafty", trait1:"Fielding Wizard", trait2:"Two-Strike K", ovr:"C-" },
+    ],
     games: [
       { date:"2026-07-28", away:"BCP", home:"CRW", awayLine:[0,1,0,0,2,0,0,0,1], homeLine:[2,0,1,3,0,0,1,0,"x"], awayHits:7, homeHits:11, awayErr:2, homeErr:0 },
       { date:"2026-07-27", away:"SPR", home:"FL7", awayLine:[1,0,0,1,0,2,0,0,0], homeLine:[0,1,1,0,1,0,0,0,"x"], awayHits:8, homeHits:6, awayErr:1, homeErr:1 },
@@ -922,10 +986,13 @@ const SEASONS = {
     ],
     batters: [],
     pitchers: [],
+    attributes: [],
     games: [],
     awards: [
-      { name:"MVP",        winner:"Techno Blade", team:"SPR", detail:".680 AVG" },
-      { name:"Cy Young",   winner:"Lucius Rokesmith", team:"CRW", detail:"2.55 ERA, 0.96 WHIP" },
+      { name:"MVP",        winner:"Techno Blade", team:"SPR", detail:".680 AVG",
+        nominees:[ { name:"Techno Blade", team:"SPR", detail:".680 AVG" }, { name:"Coolude 951", team:"CRW", detail:".410 AVG" }, { name:"3 Batters Away", team:"CRW", detail:".377 AVG" } ] },
+      { name:"Cy Young",   winner:"Lucius Rokesmith", team:"CRW", detail:"2.55 ERA, 0.96 WHIP",
+        nominees:[ { name:"Lucius Rokesmith", team:"CRW", detail:"2.55 ERA, 0.96 WHIP" }, { name:"Quandale Dingle", team:"CRW", detail:"3.10 ERA" } ] },
     ],
   },
 
@@ -946,6 +1013,7 @@ const state = { season: SEASON_IDS[0], minPA: 20, minIP: 5 };
 function teamsArr(){ return SEASONS[state.season].teams; }
 function battersArr(){ return SEASONS[state.season].batters; }
 function pitchersArr(){ return SEASONS[state.season].pitchers; }
+function attributesArr(){ return SEASONS[state.season].attributes || []; }
 function gamesArr(){ return SEASONS[state.season].games; }
 function awardsArr(){ return SEASONS[state.season].awards; }
 
@@ -1173,6 +1241,77 @@ function syncPlayersScrollTopWidth(){
   window.addEventListener("resize", syncPlayersScrollTopWidth);
 })();
 
+/* ---------- Attributes table (in-game ratings, chemistry, traits) ---------- */
+const ATTRIBUTE_COLS = [
+  {key:"name",label:"Player"},{key:"team",label:"Tm"},
+  {key:"pos",label:"Pos"},{key:"pos2",label:"Pos 2"},
+  {key:"pow",label:"POW"},{key:"con",label:"CON"},{key:"spd",label:"SPD"},
+  {key:"fld",label:"FLD"},{key:"arm",label:"ARM"},
+  {key:"bat",label:"Bat"},{key:"thr",label:"Thr"},{key:"age",label:"Age"},
+  {key:"chem",label:"Chem"},{key:"trait1",label:"Trait 1"},{key:"trait2",label:"Trait 2"},
+  {key:"ovr",label:"OVR"},
+];
+let attrSort = {key:null, dir:1};
+
+function renderAttributesHead(){
+  document.getElementById("attributesHeadRow").innerHTML = ATTRIBUTE_COLS.map(c=>
+    `<th data-key="${c.key}" class="${attrSort.key===c.key?'sorted':''}">${c.label}</th>`
+  ).join("");
+}
+
+function renderAttributesBody(){
+  let data = [...attributesArr()];
+  if(attrSort.key){
+    data.sort((a,b)=>{
+      const av=a[attrSort.key], bv=b[attrSort.key];
+      if(typeof av==="string") return av.localeCompare(bv)*attrSort.dir;
+      return (av-bv)*attrSort.dir;
+    });
+  }
+  const tbody = document.querySelector("#attributesTable tbody");
+  if(!data.length){
+    tbody.innerHTML = `<tr><td colspan="${ATTRIBUTE_COLS.length}" class="no-data-note">No attribute data on file for this season yet.</td></tr>`;
+    syncAttributesScrollTopWidth();
+    return;
+  }
+  tbody.innerHTML = data.map(p=>`
+    <tr>
+      ${ATTRIBUTE_COLS.map(c=>{
+        const v = p[c.key];
+        if(c.key==="name") return `<td><a class="player-link" data-name="${escapeAttr(p.name)}">${p.name}</a></td>`;
+        if(c.key==="team") return `<td>${teamTag(v)}</td>`;
+        if(c.key==="ovr") return `<td><span class="ovr-badge">${v}</span></td>`;
+        return `<td>${v}</td>`;
+      }).join("")}
+    </tr>
+  `).join("");
+  syncAttributesScrollTopWidth();
+}
+
+function syncAttributesScrollTopWidth(){
+  const table = document.getElementById("attributesTable");
+  const inner = document.getElementById("attributesScrollTopInner");
+  if(table && inner) inner.style.width = table.scrollWidth + "px";
+}
+
+(function initAttributesScrollSync(){
+  const top = document.getElementById("attributesScrollTop");
+  const bottom = document.getElementById("attributesScrollBottom");
+  if(!top || !bottom) return;
+  let syncing = false;
+  top.addEventListener("scroll", ()=>{
+    if(syncing) return; syncing = true;
+    bottom.scrollLeft = top.scrollLeft;
+    syncing = false;
+  });
+  bottom.addEventListener("scroll", ()=>{
+    if(syncing) return; syncing = true;
+    top.scrollLeft = bottom.scrollLeft;
+    syncing = false;
+  });
+  window.addEventListener("resize", syncAttributesScrollTopWidth);
+})();
+
 function renderGames(){
   if(!gamesArr().length){
     document.getElementById("gameList").innerHTML = `<div class="no-data-note">No box scores on file for this season yet.</div>`;
@@ -1288,6 +1427,38 @@ function getPlayerAwards(name){
   return won;
 }
 
+// Finalists/nominees who were up for an award but didn't win it.
+function getPlayerNominations(name){
+  const nominated = [];
+  [...SEASON_IDS].reverse().forEach(id=>{ // oldest -> newest
+    const season = SEASONS[id];
+    (season.awards||[]).forEach(a=>{
+      if(nameMatches(name, a.winner)) return; // already shown as a win
+      (a.nominees||[]).filter(n=>nameMatches(name, n.name)).forEach(n=>{
+        nominated.push({ award:a.name, seasonLabel:season.label, team:n.team, detail:n.detail });
+      });
+    });
+  });
+  return nominated;
+}
+
+// Seasons where the player's roster team matches that season's HISTORY champion.
+function getPlayerChampionships(name){
+  const { battingRows, pitchingRows } = getPlayerCareer(name);
+  const teamBySeason = {};
+  [...battingRows, ...pitchingRows].forEach(r=> teamBySeason[r.seasonId] = r.team);
+  const champs = [];
+  HISTORY.forEach(h=>{
+    const seasonId = SEASON_IDS.find(id=> SEASONS[id].label===h.season);
+    if(!seasonId) return;
+    const teamId = teamBySeason[seasonId];
+    if(!teamId) return;
+    const team = (SEASONS[seasonId].teams||[]).find(t=> normTeamKey(t.id)===normTeamKey(teamId));
+    if(team && team.name===h.champion) champs.push(h);
+  });
+  return champs;
+}
+
 function getPlayerCareer(name){
   const battingRows = [], pitchingRows = [];
   [...SEASON_IDS].reverse().forEach(id=>{ // oldest -> newest
@@ -1394,6 +1565,20 @@ function openPlayerPage(name){
 
   let html = "";
 
+  const championships = getPlayerChampionships(name);
+  if(championships.length){
+    html += `<h3 class="sub-title">Championships</h3>
+    <div class="player-overlay-awards">
+      ${championships.map(h=>`
+        <div class="award-card">
+          <div class="award-name">${h.season} &middot; Champion</div>
+          <div class="award-winner">${h.champion}</div>
+          <div class="award-detail">Def. ${h.runnerUp}${h.fmvp ? " &middot; FMVP: "+h.fmvp : ""}</div>
+        </div>
+      `).join("")}
+    </div>`;
+  }
+
   const playerAwards = getPlayerAwards(name);
   if(playerAwards.length){
     html += `<h3 class="sub-title">Awards</h3>
@@ -1403,6 +1588,20 @@ function openPlayerPage(name){
           <div class="award-name">${a.seasonLabel} &middot; ${a.name}</div>
           <div class="award-winner">${a.winner}</div>
           ${a.detail ? `<div class="award-detail">${a.detail}</div>` : ""}
+        </div>
+      `).join("")}
+    </div>`;
+  }
+
+  const playerNominations = getPlayerNominations(name);
+  if(playerNominations.length){
+    html += `<h3 class="sub-title">Award Nominations</h3>
+    <div class="player-overlay-awards">
+      ${playerNominations.map(n=>`
+        <div class="award-card">
+          <div class="award-name">${n.seasonLabel} &middot; ${n.award}</div>
+          <div class="award-winner">Finalist</div>
+          ${n.detail ? `<div class="award-detail">${n.detail}</div>` : ""}
         </div>
       `).join("")}
     </div>`;
@@ -1457,7 +1656,7 @@ function openPlayerPage(name){
   }
 
   if(!battingRows.length && !pitchingRows.length){
-    html = `<div class="no-data-note">No recorded stats for this player.</div>`;
+    html += `<div class="no-data-note">No recorded stats for this player.</div>`;
   }
 
   document.getElementById("playerBody").innerHTML = html;
@@ -1504,6 +1703,7 @@ document.getElementById("seasonSelect").addEventListener("change", e=>{
   state.season = e.target.value;
   standingsSort = {key:null, dir:1};
   playersSort = {key:null, dir:1};
+  attrSort = {key:null, dir:1};
   renderAll();
 });
 
@@ -1525,6 +1725,12 @@ document.getElementById("tabs").addEventListener("click", e=>{
   document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
   btn.classList.add("active");
   document.getElementById("panel-"+btn.dataset.tab).classList.add("active");
+  // Tables that size their "scroll hint" bar off scrollWidth report 0 while
+  // their panel is display:none, so re-measure now that the panel is visible.
+  requestAnimationFrame(()=>{
+    if(btn.dataset.tab==="players") syncPlayersScrollTopWidth();
+    if(btn.dataset.tab==="attributes") syncAttributesScrollTopWidth();
+  });
 });
 
 document.querySelector("#standingsTable thead").addEventListener("click", e=>{
@@ -1576,6 +1782,16 @@ document.getElementById("playersHeadRow").addEventListener("click", e=>{
   renderPlayersBody();
 });
 
+document.getElementById("attributesHeadRow").addEventListener("click", e=>{
+  const th = e.target.closest("th");
+  if(!th) return;
+  const key = th.dataset.key;
+  attrSort.dir = (attrSort.key===key) ? -attrSort.dir : -1;
+  attrSort.key = key;
+  renderAttributesHead();
+  renderAttributesBody();
+});
+
 /* =========================================================================
    CSV IMPORT + PERSISTENCE
    ========================================================================= */
@@ -1587,6 +1803,8 @@ function renderAll(){
   renderLeaders();
   renderPlayersHead();
   renderPlayersBody();
+  renderAttributesHead();
+  renderAttributesBody();
   renderGames();
   renderHistory();
   if(isAdmin){
