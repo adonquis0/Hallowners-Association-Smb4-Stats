@@ -679,7 +679,8 @@
 
     <div class="import-block">
       <h4>Sync from Google Sheets</h4>
-      <p>Paste the published-CSV link for each tab of your sheet (File &rarr; Share &rarr; Publish to web &rarr; pick the tab &rarr; CSV). Same columns as the CSV templates below. Links are remembered — after the first sync you can just click "Sync Now" whenever you update the sheet.</p>
+      <p>Paste the published-CSV link for each tab of your sheet (File &rarr; Share &rarr; Publish to web &rarr; pick the tab &rarr; CSV). Same columns as the CSV templates below. <strong>These links are saved per season</strong> — the fields below apply only to whichever season is selected in the header dropdown, so a different season can point at a completely different sheet. Once set, just click "Sync Now" after you update the sheet.</p>
+      <div class="import-status" style="margin-bottom:10px;">Editing links for: <strong id="sheetSyncSeasonLabel"></strong></div>
       <div class="import-row" style="flex-direction:column; align-items:stretch; gap:8px;">
         <input type="text" id="sheetTeamsUrl" placeholder="Teams / Standings sheet CSV link" class="sheet-url-input">
         <input type="text" id="sheetBattersUrl" placeholder="Batting Stats sheet CSV link" class="sheet-url-input">
@@ -1547,17 +1548,23 @@ async function loadSheetUrls(){
   }
 }
 
+let sheetUrlsLoadedFor = null;
 async function renderSheetUrlInputs(){
   const teamsEl = document.getElementById("sheetTeamsUrl");
   if(!teamsEl) return;
+  const labelEl = document.getElementById("sheetSyncSeasonLabel");
+  if(labelEl) labelEl.textContent = SEASONS[state.season].label;
+  const seasonChanged = sheetUrlsLoadedFor !== state.season;
   const urls = await loadSheetUrls();
   const battersEl = document.getElementById("sheetBattersUrl");
   const pitchersEl = document.getElementById("sheetPitchersUrl");
-  // Only fill in fields the admin hasn't already typed into, so a sync in
-  // progress doesn't get overwritten mid-edit.
-  if(!teamsEl.value) teamsEl.value = urls.teams || "";
-  if(battersEl && !battersEl.value) battersEl.value = urls.batters || "";
-  if(pitchersEl && !pitchersEl.value) pitchersEl.value = urls.pitchers || "";
+  // Always refresh on a season switch (these links belong to a different
+  // season now); otherwise only fill empty fields so an in-progress edit
+  // within the same season doesn't get overwritten.
+  if(seasonChanged || !teamsEl.value) teamsEl.value = urls.teams || "";
+  if(battersEl && (seasonChanged || !battersEl.value)) battersEl.value = urls.batters || "";
+  if(pitchersEl && (seasonChanged || !pitchersEl.value)) pitchersEl.value = urls.pitchers || "";
+  sheetUrlsLoadedFor = state.season;
 }
 
 function fetchSheetCsv(url){
