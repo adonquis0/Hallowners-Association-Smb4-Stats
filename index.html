@@ -909,7 +909,7 @@ const SEASONS = {
   },
 
   s1: {
-    label: "Season 1 — Final",
+    label: "Season 1",
     teams: [
       { id:"SPR", name:"Spirits",     color:"#8AA6C1", wins:11, losses:5, streak:"W2", last10:"6-4", runsFor:155, runsAgainst:128 },
       { id:"CRW", name:"Crowmaxxors", color:"#F5B700", wins:11, losses:5, streak:"L1", last10:"5-5", runsFor:148, runsAgainst:140 },
@@ -1485,7 +1485,7 @@ document.querySelector("#standingsTable thead").addEventListener("click", e=>{
   const th = e.target.closest("th");
   if(!th) return;
   const key = th.dataset.key;
-  standingsSort.dir = (standingsSort.key===key) ? -standingsSort.dir : 1;
+  standingsSort.dir = (standingsSort.key===key) ? -standingsSort.dir : -1;
   standingsSort.key = key;
   // simple re-sort of the current season's standings view
   const rows = standingsData().sort((a,b)=>{
@@ -1518,7 +1518,7 @@ document.getElementById("playersHeadRow").addEventListener("click", e=>{
   const th = e.target.closest("th");
   if(!th) return;
   const key = th.dataset.key;
-  playersSort.dir = (playersSort.key===key) ? -playersSort.dir : 1;
+  playersSort.dir = (playersSort.key===key) ? -playersSort.dir : -1;
   playersSort.key = key;
   renderPlayersHead();
   renderPlayersBody();
