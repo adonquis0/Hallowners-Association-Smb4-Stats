@@ -614,6 +614,7 @@
 <main>
   <section class="panel active" id="panel-standings">
     <h2 class="section-title">Standings</h2>
+    <div class="table-scroll-bottom">
     <table id="standingsTable">
       <thead>
         <tr>
@@ -631,6 +632,7 @@
       </thead>
       <tbody></tbody>
     </table>
+    </div>
   </section>
 
   <section class="panel" id="panel-players">
@@ -1479,6 +1481,7 @@ document.getElementById("tabs").addEventListener("click", e=>{
   document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
   btn.classList.add("active");
   document.getElementById("panel-"+btn.dataset.tab).classList.add("active");
+  if(btn.dataset.tab === "players") syncPlayersScrollTopWidth();
 });
 
 document.querySelector("#standingsTable thead").addEventListener("click", e=>{
