@@ -232,28 +232,35 @@
   /* ---------- sticky player-name column (players + attributes tables) ---------- */
   #playersTable th:first-child,
   #playersTable td:first-child,
-  #attributesTable th:first-child,
-  #attributesTable td:first-child{
+  #attributesHitTable th:first-child,
+  #attributesHitTable td:first-child,
+  #attributesPitTable th:first-child,
+  #attributesPitTable td:first-child{
     position:sticky;
     left:0;
     z-index:1;
   }
   #playersTable thead th:first-child,
-  #attributesTable thead th:first-child{
+  #attributesHitTable thead th:first-child,
+  #attributesPitTable thead th:first-child{
     z-index:3;
     background:var(--cream);
   }
   #playersTable thead th:first-child.sorted,
-  #attributesTable thead th:first-child.sorted{background:var(--gold);}
+  #attributesHitTable thead th:first-child.sorted,
+  #attributesPitTable thead th:first-child.sorted{background:var(--gold);}
   #playersTable tbody td:first-child,
-  #attributesTable tbody td:first-child{
+  #attributesHitTable tbody td:first-child,
+  #attributesPitTable tbody td:first-child{
     background:var(--navy-800);
     box-shadow:1px 0 0 var(--hairline);
   }
   #playersTable tbody tr:nth-child(even) td:first-child,
-  #attributesTable tbody tr:nth-child(even) td:first-child{background:#152A4A;}
+  #attributesHitTable tbody tr:nth-child(even) td:first-child,
+  #attributesPitTable tbody tr:nth-child(even) td:first-child{background:#152A4A;}
   #playersTable tbody tr:hover td:first-child,
-  #attributesTable tbody tr:hover td:first-child{background:var(--navy-700);}
+  #attributesHitTable tbody tr:hover td:first-child,
+  #attributesPitTable tbody tr:hover td:first-child{background:var(--navy-700);}
   .ovr-badge{
     display:inline-block;
     font-family:'IBM Plex Mono',monospace;
@@ -263,6 +270,118 @@
     border-radius:2px;
     background:var(--gold);
     color:var(--navy-950);
+  }
+
+  /* ---------- attributes page pager (POS/OVR/RATINGS/PITCHING/CHEM pages) ---------- */
+  .attr-pager{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    margin:4px 0 14px;
+  }
+  .attr-pager-arrow{
+    background:var(--navy-700);
+    border:1px solid var(--hairline);
+    color:var(--cream);
+    width:30px; height:30px;
+    border-radius:2px;
+    cursor:pointer;
+    font-size:12px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .attr-pager-arrow:hover{background:var(--navy-600);}
+  .attr-pager-arrow:disabled{opacity:0.35; cursor:default;}
+  .attr-pager-arrow:disabled:hover{background:var(--navy-700);}
+  .attr-pager-dots{display:flex; gap:8px;}
+  .attr-page-dot{
+    width:14px; height:14px;
+    border-radius:2px;
+    background:var(--navy-600);
+    border:1px solid var(--hairline);
+    cursor:pointer;
+    padding:0;
+  }
+  .attr-page-dot.active{background:var(--cream);}
+
+  /* ---------- attribute rating bars (POW/CON/SPD/FLD/ARM/VEL/JNK/ACC) ---------- */
+  .rating-cell{
+    position:relative;
+    min-width:52px;
+    height:22px;
+    border-radius:2px;
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    padding:0 7px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    font-weight:700;
+    color:#fff;
+    text-shadow:0 1px 2px rgba(0,0,0,0.55);
+  }
+  .rating-cell.rating-empty{
+    background:var(--navy-950);
+    color:var(--cream-dim);
+    justify-content:center;
+    font-weight:500;
+  }
+  .pos2-cell{ color:var(--cream-dim); }
+
+  /* ---------- chemistry badges ---------- */
+  .chem-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    font-weight:700;
+    padding:3px 8px;
+    border-radius:2px;
+    border:1px solid;
+    white-space:nowrap;
+  }
+  .chem-badge::before{
+    content:"";
+    width:7px; height:7px;
+    border-radius:50%;
+    background:currentColor;
+    display:inline-block;
+  }
+
+  /* ---------- trait pills (color-coded by tier) ---------- */
+  .trait-pill{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    font-size:12.5px;
+    padding:3px 4px;
+    border-radius:2px;
+    white-space:nowrap;
+  }
+  .trait-pill::before{
+    content:"";
+    width:8px; height:8px;
+    border-radius:2px;
+    flex:none;
+  }
+  .trait-pill.plus::before{ background:var(--gold); }
+  .trait-pill.neutral::before{ background:#4FC3C9; }
+  .trait-pill.minus::before{ background:var(--crimson); }
+  .trait-pill.minus{ background:rgba(214,69,69,0.12); color:#F0B9B9; }
+
+  /* ---------- pitch arsenal tags ---------- */
+  .pitch-tag{
+    display:inline-block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    font-weight:600;
+    padding:2px 5px;
+    margin:0 3px 3px 0;
+    border-radius:2px;
+    border:1px solid var(--hairline);
+    background:var(--navy-700);
+    color:var(--cream-dim);
   }
 
   /* ---------- standings scrolls horizontally on narrow screens ---------- */
@@ -688,11 +807,26 @@
   <section class="panel" id="panel-attributes">
     <h2 class="section-title">Player Attributes</h2>
     <p style="color:var(--cream-dim); font-size:13px; margin-top:-8px;">In-game ratings, chemistry, and traits for the current roster.</p>
-    <div class="table-scroll-top" id="attributesScrollTop"><div id="attributesScrollTopInner"></div></div>
-    <div class="table-scroll-bottom" id="attributesScrollBottom">
-    <table id="attributesTable">
-      <thead><tr id="attributesHeadRow"></tr></thead>
-      <tbody></tbody>
+    <div class="attr-pager">
+      <button class="attr-pager-arrow" id="attrPagePrev" aria-label="Previous page">&#9664;</button>
+      <div class="attr-pager-dots" id="attrPageDots"></div>
+      <button class="attr-pager-arrow" id="attrPageNext" aria-label="Next page">&#9654;</button>
+    </div>
+    <h3 class="sub-title">Hitters</h3>
+    <div class="table-scroll-top" id="attributesHitScrollTop"><div id="attributesHitScrollTopInner"></div></div>
+    <div class="table-scroll-bottom" id="attributesHitScrollBottom">
+    <table id="attributesHitTable">
+      <thead><tr id="attributesHitHeadRow"></tr></thead>
+      <tbody id="attributesHitBody"></tbody>
+    </table>
+    </div>
+
+    <h3 class="sub-title">Pitchers</h3>
+    <div class="table-scroll-top" id="attributesPitScrollTop"><div id="attributesPitScrollTopInner"></div></div>
+    <div class="table-scroll-bottom" id="attributesPitScrollBottom">
+    <table id="attributesPitTable">
+      <thead><tr id="attributesPitHeadRow"></tr></thead>
+      <tbody id="attributesPitBody"></tbody>
     </table>
     </div>
   </section>
@@ -743,6 +877,7 @@
         <input type="text" id="sheetTeamsUrl" placeholder="Teams / Standings sheet CSV link" class="sheet-url-input">
         <input type="text" id="sheetBattersUrl" placeholder="Batting Stats sheet CSV link" class="sheet-url-input">
         <input type="text" id="sheetPitchersUrl" placeholder="Pitching Stats sheet CSV link" class="sheet-url-input">
+        <input type="text" id="sheetAttributesUrl" placeholder="Player Attributes sheet CSV link" class="sheet-url-input">
       </div>
       <div class="import-row" style="margin-top:12px;">
         <button class="file-btn" id="sheetSyncBtn">Sync Now</button>
@@ -788,6 +923,16 @@
         <button class="template-link" id="pitchersTemplate">Download template</button>
       </div>
       <div class="import-status" id="pitchersStatus"></div>
+    </div>
+
+    <div class="import-block">
+      <h4>Player Attributes</h4>
+      <p>Columns: name, team (id), pos, pos2, pow, con, spd, fld, arm, vel, jnk, acc, arsenal (pipe- or comma-separated, e.g. 4F/SL/CF), bat, thr, age, chem, trait1, trait1Tier (plus/neutral/minus), trait2, trait2Tier, ovr</p>
+      <div class="import-row">
+        <label class="file-btn">Choose CSV<input type="file" accept=".csv" id="attributesFile" style="display:none;"></label>
+        <button class="template-link" id="attributesTemplate">Download template</button>
+      </div>
+      <div class="import-status" id="attributesStatus"></div>
     </div>
 
     <div class="reset-row">
@@ -939,28 +1084,28 @@ const SEASONS = {
       { name:"Revenant Horror",      team:"CRW", pos:"CP",    w:1, l:0, era:6.14,  r:6,  er:5,  whip:2.32, g:8, gs:0, sv:1, ip:7.1,  h:15, avg:.385, so:4,  bb:2, wp:0, hr:0, cg:0, sho:0, hb:0, tbf:41,  np:107 },
     ],
     attributes: [
-      { name:"Coolude 951", team:"CRW", pos:"SS", pos2:"2B", pow:59, con:84, spd:45, fld:76, arm:80, bat:"RIGHT", thr:"LEFT", age:26, chem:"Crafty", trait1:"Bulldog Mentality", trait2:"Fielding Wizard", ovr:"B" },
-      { name:"3 Batters Away", team:"CRW", pos:"C", pos2:"1B", pow:52, con:84, spd:40, fld:47, arm:72, bat:"RIGHT", thr:"RIGHT", age:34, chem:"Scholar", trait1:"Two-Strike K", trait2:"Bunter", ovr:"C+" },
-      { name:"Diddy Foid", team:"CRW", pos:"CF", pos2:"RF", pow:78, con:83, spd:68, fld:77, arm:45, bat:"RIGHT", thr:"RIGHT", age:32, chem:"Fiery", trait1:"RISP Specialist", trait2:"Contact Hitter", ovr:"B" },
-      { name:"Screw Dismal", team:"CRW", pos:"2B", pos2:"SS", pow:79, con:88, spd:44, fld:58, arm:56, bat:"LEFT", thr:"RIGHT", age:34, chem:"Bulldog", trait1:"Bunter", trait2:"Composed", ovr:"B-" },
-      { name:"Gaia Construct", team:"CRW", pos:"1B", pos2:"3B", pow:47, con:67, spd:55, fld:49, arm:49, bat:"RIGHT", thr:"RIGHT", age:29, chem:"Fiery", trait1:"Bunter", trait2:"Iron Glove", ovr:"C" },
-      { name:"False Blud", team:"CRW", pos:"3B", pos2:"1B", pow:51, con:69, spd:73, fld:69, arm:78, bat:"LEFT", thr:"RIGHT", age:32, chem:"Rocket", trait1:"Slugger", trait2:"Two-Strike K", ovr:"B" },
-      { name:"Sniped by lukep50", team:"CRW", pos:"RF", pos2:"CF", pow:52, con:80, spd:87, fld:61, arm:62, bat:"LEFT", thr:"RIGHT", age:30, chem:"Scholar", trait1:"Slugger", trait2:"Cannon Arm", ovr:"B" },
-      { name:"Thirty Virus", team:"CRW", pos:"SP", pos2:"RP", pow:35, con:35, spd:46, fld:59, arm:71, bat:"LEFT", thr:"RIGHT", age:30, chem:"Fiery", trait1:"RISP Specialist", trait2:"Fastball Fanatic", ovr:"C-" },
-      { name:"I Show Speed", team:"CRW", pos:"CF", pos2:"LF", pow:60, con:58, spd:52, fld:63, arm:65, bat:"RIGHT", thr:"LEFT", age:34, chem:"Wallflower", trait1:"Rally Starter", trait2:"Speed Demon", ovr:"C+" },
-      { name:"Go Eat Dinner", team:"CRW", pos:"SS", pos2:"2B", pow:59, con:80, spd:80, fld:76, arm:74, bat:"RIGHT", thr:"RIGHT", age:34, chem:"Fiery", trait1:"Utility", trait2:"Slugger", ovr:"B+" },
-      { name:"Sigma Move", team:"CRW", pos:"C", pos2:"1B", pow:50, con:79, spd:47, fld:55, arm:52, bat:"LEFT", thr:"RIGHT", age:29, chem:"Crafty", trait1:"Speed Demon", trait2:"Bunter", ovr:"C" },
-      { name:"Kanye West", team:"CRW", pos:"CP", pos2:"1B", pow:36, con:29, spd:37, fld:50, arm:71, bat:"LEFT", thr:"LEFT", age:30, chem:"Bulldog", trait1:"Bulldog Mentality", trait2:"Contact Hitter", ovr:"D" },
-      { name:"Bonzo Mask", team:"CRW", pos:"1B", pos2:"C", pow:57, con:90, spd:63, fld:70, arm:55, bat:"LEFT", thr:"RIGHT", age:29, chem:"Crafty", trait1:"Fastball Fanatic", trait2:"Contact Hitter", ovr:"B-" },
-      { name:"Fresh Man", team:"CRW", pos:"SP", pos2:"RP", pow:40, con:35, spd:32, fld:46, arm:76, bat:"RIGHT", thr:"RIGHT", age:31, chem:"Bulldog", trait1:"Cannon Arm", trait2:"Distractor", ovr:"C-" },
-      { name:"Shadow Assassin", team:"CRW", pos:"RP", pos2:"CP", pow:32, con:28, spd:30, fld:48, arm:82, bat:"RIGHT", thr:"RIGHT", age:33, chem:"Rocket", trait1:"Utility", trait2:"Rally Starter", ovr:"D" },
-      { name:"Lucius Rokesmith", team:"CRW", pos:"SP", pos2:"--", pow:43, con:49, spd:39, fld:58, arm:73, bat:"RIGHT", thr:"LEFT", age:26, chem:"Laid-back", trait1:"Iron Glove", trait2:"Composed", ovr:"C" },
-      { name:"Patrick Pass", team:"CRW", pos:"SP", pos2:"--", pow:39, con:36, spd:51, fld:68, arm:87, bat:"LEFT", thr:"RIGHT", age:32, chem:"Fiery", trait1:"Fielding Wizard", trait2:"Bulldog Mentality", ovr:"C" },
-      { name:"Frank Ocean", team:"CRW", pos:"SP", pos2:"--", pow:26, con:41, spd:34, fld:66, arm:70, bat:"LEFT", thr:"RIGHT", age:32, chem:"Wallflower", trait1:"Composed", trait2:"Iron Glove", ovr:"C-" },
-      { name:"Quandale Dingle", team:"CRW", pos:"SP", pos2:"RP", pow:25, con:33, spd:33, fld:58, arm:87, bat:"LEFT", thr:"RIGHT", age:31, chem:"Rocket", trait1:"Composed", trait2:"Distractor", ovr:"C-" },
-      { name:"Ouro The Omniscient", team:"CRW", pos:"SP", pos2:"RP", pow:45, con:34, spd:43, fld:49, arm:75, bat:"RIGHT", thr:"LEFT", age:26, chem:"Laid-back", trait1:"Composed", trait2:"Two-Strike K", ovr:"C-" },
-      { name:"Down in Ohio", team:"CRW", pos:"RP", pos2:"--", pow:28, con:29, spd:59, fld:52, arm:70, bat:"LEFT", thr:"LEFT", age:29, chem:"Scholar", trait1:"Distractor", trait2:"Fielding Wizard", ovr:"C-" },
-      { name:"Revenant Horror", team:"CRW", pos:"CP", pos2:"RP", pow:31, con:27, spd:56, fld:53, arm:91, bat:"RIGHT", thr:"LEFT", age:33, chem:"Crafty", trait1:"Fielding Wizard", trait2:"Two-Strike K", ovr:"C-" },
+      { name:"Coolude 951", team:"CRW", pos:"SS", pos2:"2B", pow:60, con:75, spd:69, fld:85, arm:51, vel:null, jnk:null, acc:null, arsenal:[], bat:"L", thr:"R", age:26, chem:"DIS", trait1:"Two Way (IF)", trait1Tier:"neutral", trait2:"Volatile", trait2Tier:"minus", ovr:"B-" },
+      { name:"3 Batters Away", team:"CRW", pos:"C", pos2:"1B", pow:50, con:78, spd:53, fld:54, arm:74, vel:null, jnk:null, acc:null, arsenal:[], bat:"R", thr:"R", age:38, chem:"SCH", trait1:"Mind Gamer", trait1Tier:"neutral", trait2:"Rally Stopper", trait2Tier:"neutral", ovr:"C+" },
+      { name:"Diddy Foid", team:"CRW", pos:"CF", pos2:"RF", pow:79, con:77, spd:51, fld:57, arm:81, vel:null, jnk:null, acc:null, arsenal:[], bat:"L", thr:"R", age:39, chem:"SPI", trait1:"Pinch Perfect", trait1Tier:"plus", trait2:"POW vs LHP", trait2Tier:"plus", ovr:"B-" },
+      { name:"Screw Dismal", team:"CRW", pos:"2B", pos2:"SS", pow:66, con:66, spd:40, fld:71, arm:89, vel:null, jnk:null, acc:null, arsenal:[], bat:"S", thr:"L", age:35, chem:"DIS", trait1:"Pinch Perfect", trait1Tier:"plus", trait2:"Bad Ball Hitter", trait2Tier:"plus", ovr:"B-" },
+      { name:"Gaia Construct", team:"CRW", pos:"1B", pos2:"3B", pow:60, con:50, spd:53, fld:57, arm:41, vel:null, jnk:null, acc:null, arsenal:[], bat:"R", thr:"R", age:22, chem:"CRA", trait1:"Elite 4F", trait1Tier:"plus", trait2:"Tough Out", trait2Tier:"plus", ovr:"C" },
+      { name:"False Blud", team:"CRW", pos:"3B", pos2:"1B", pow:57, con:73, spd:44, fld:81, arm:81, vel:null, jnk:null, acc:null, arsenal:[], bat:"L", thr:"R", age:28, chem:"CRA", trait1:"Rally Stopper", trait1Tier:"neutral", trait2:"Bad Ball Hitter", trait2Tier:"plus", ovr:"B-" },
+      { name:"Sniped by lukep50", team:"CRW", pos:"RF", pos2:"CF", pow:61, con:90, spd:77, fld:95, arm:42, vel:null, jnk:null, acc:null, arsenal:[], bat:"R", thr:"R", age:20, chem:"CRA", trait1:"Gets Ahead", trait1Tier:"plus", trait2:"Two Way (OF)", trait2Tier:"neutral", ovr:"B" },
+      { name:"Thirty Virus", team:"CRW", pos:"SP", pos2:"RP", pow:15, con:45, spd:57, fld:76, arm:97, vel:84, jnk:71, acc:81, arsenal:["4F","SL","CF"], bat:"L", thr:"R", age:24, chem:"DIS", trait1:"Choker", trait1Tier:"minus", trait2:"Cannon Arm", trait2Tier:"plus", ovr:"B+" },
+      { name:"I Show Speed", team:"CRW", pos:"CF", pos2:"LF", pow:85, con:67, spd:85, fld:54, arm:77, vel:null, jnk:null, acc:null, arsenal:[], bat:"R", thr:"R", age:28, chem:"DIS", trait1:"Two Way (IF)", trait1Tier:"neutral", trait2:"POW vs LHP", trait2Tier:"plus", ovr:"B" },
+      { name:"Go Eat Dinner", team:"CRW", pos:"SS", pos2:"2B", pow:46, con:65, spd:71, fld:84, arm:63, vel:null, jnk:null, acc:null, arsenal:[], bat:"L", thr:"L", age:32, chem:"DIS", trait1:"Specialist", trait1Tier:"plus", trait2:"Elite 4F", trait2Tier:"plus", ovr:"B-" },
+      { name:"Sigma Move", team:"CRW", pos:"C", pos2:"1B", pow:69, con:78, spd:49, fld:85, arm:74, vel:null, jnk:null, acc:null, arsenal:[], bat:"S", thr:"R", age:37, chem:"SPI", trait1:"Elite 2F", trait1Tier:"plus", trait2:"Bad Ball Hitter", trait2Tier:"plus", ovr:"B" },
+      { name:"Kanye West", team:"CRW", pos:"CP", pos2:"1B", pow:34, con:40, spd:32, fld:78, arm:83, vel:89, jnk:93, acc:67, arsenal:["4F","CB","SL"], bat:"L", thr:"R", age:39, chem:"DIS", trait1:"K Collector", trait1Tier:"plus", trait2:"Choker", trait2Tier:"minus", ovr:"A-" },
+      { name:"Bonzo Mask", team:"CRW", pos:"1B", pos2:"C", pow:58, con:78, spd:36, fld:85, arm:80, vel:null, jnk:null, acc:null, arsenal:[], bat:"R", thr:"R", age:22, chem:"CRA", trait1:"Rally Starter", trait1Tier:"plus", trait2:"Two Way (IF)", trait2Tier:"neutral", ovr:"B-" },
+      { name:"Fresh Man", team:"CRW", pos:"SP", pos2:"RP", pow:23, con:15, spd:60, fld:83, arm:99, vel:97, jnk:61, acc:63, arsenal:["4F","CB","SL"], bat:"R", thr:"R", age:21, chem:"SCH", trait1:"Clutch", trait1Tier:"plus", trait2:"Sign Stealer", trait2Tier:"neutral", ovr:"B+" },
+      { name:"Shadow Assassin", team:"CRW", pos:"RP", pos2:"CP", pow:17, con:22, spd:40, fld:64, arm:92, vel:84, jnk:80, acc:58, arsenal:["4F","2F","CB","SL","FK"], bat:"L", thr:"L", age:23, chem:"CMP", trait1:"Distractor", trait1Tier:"plus", trait2:"Mind Gamer", trait2Tier:"neutral", ovr:"B" },
+      { name:"Lucius Rokesmith", team:"CRW", pos:"SP", pos2:"--", pow:24, con:31, spd:55, fld:89, arm:80, vel:99, jnk:63, acc:56, arsenal:["4F","2F","CB","FK","CF"], bat:"L", thr:"R", age:27, chem:"CMP", trait1:"Elite 4F", trait1Tier:"plus", trait2:"Two Way (OF)", trait2Tier:"neutral", ovr:"B+" },
+      { name:"Patrick Pass", team:"CRW", pos:"SP", pos2:"--", pow:38, con:18, spd:32, fld:72, arm:93, vel:86, jnk:90, acc:76, arsenal:["4F","CB","CH","FK","CF"], bat:"R", thr:"R", age:24, chem:"CMP", trait1:"Gets Ahead", trait1Tier:"plus", trait2:"Two Way (IF)", trait2Tier:"neutral", ovr:"A-" },
+      { name:"Frank Ocean", team:"CRW", pos:"SP", pos2:"--", pow:27, con:39, spd:31, fld:79, arm:89, vel:88, jnk:95, acc:54, arsenal:["4F","2F","CB","SL"], bat:"R", thr:"R", age:30, chem:"SCH", trait1:"Slow Poke", trait1Tier:"minus", trait2:"Bad Ball Hitter", trait2Tier:"plus", ovr:"A-" },
+      { name:"Quandale Dingle", team:"CRW", pos:"SP", pos2:"RP", pow:30, con:43, spd:46, fld:84, arm:82, vel:96, jnk:68, acc:93, arsenal:["4F","CB","SL","CH","FK"], bat:"L", thr:"L", age:28, chem:"DIS", trait1:"Mind Gamer", trait1Tier:"neutral", trait2:"Gets Ahead", trait2Tier:"plus", ovr:"A" },
+      { name:"Ouro The Omniscient", team:"CRW", pos:"SP", pos2:"RP", pow:29, con:21, spd:50, fld:62, arm:79, vel:94, jnk:85, acc:51, arsenal:["4F","CB","FK","CF"], bat:"L", thr:"R", age:40, chem:"CMP", trait1:"Slow Poke", trait1Tier:"minus", trait2:"Elite 2F", trait2Tier:"plus", ovr:"B+" },
+      { name:"Down in Ohio", team:"CRW", pos:"RP", pos2:"--", pow:37, con:21, spd:53, fld:85, arm:90, vel:81, jnk:76, acc:76, arsenal:["4F","CH","SB"], bat:"R", thr:"R", age:22, chem:"CMP", trait1:"Sign Stealer", trait1Tier:"neutral", trait2:"Meltdown", trait2Tier:"minus", ovr:"B+" },
+      { name:"Revenant Horror", team:"CRW", pos:"CP", pos2:"RP", pow:31, con:22, spd:52, fld:87, arm:98, vel:79, jnk:89, acc:65, arsenal:["4F","CB","SB"], bat:"R", thr:"R", age:41, chem:"SPI", trait1:"First Pitch Slayer", trait1Tier:"plus", trait2:"Bad Ball Hitter", trait2Tier:"plus", ovr:"B+" },
     ],
     games: [
       { date:"2026-07-28", away:"BCP", home:"CRW", awayLine:[0,1,0,0,2,0,0,0,1], homeLine:[2,0,1,3,0,0,1,0,"x"], awayHits:7, homeHits:11, awayErr:2, homeErr:0 },
@@ -1241,62 +1386,185 @@ function syncPlayersScrollTopWidth(){
   window.addEventListener("resize", syncPlayersScrollTopWidth);
 })();
 
-/* ---------- Attributes table (in-game ratings, chemistry, traits) ---------- */
-const ATTRIBUTE_COLS = [
-  {key:"name",label:"Player"},{key:"team",label:"Tm"},
-  {key:"pos",label:"Pos"},{key:"pos2",label:"Pos 2"},
-  {key:"pow",label:"POW"},{key:"con",label:"CON"},{key:"spd",label:"SPD"},
-  {key:"fld",label:"FLD"},{key:"arm",label:"ARM"},
-  {key:"bat",label:"Bat"},{key:"thr",label:"Thr"},{key:"age",label:"Age"},
-  {key:"chem",label:"Chem"},{key:"trait1",label:"Trait 1"},{key:"trait2",label:"Trait 2"},
-  {key:"ovr",label:"OVR"},
+/* ---------- Attributes table (in-game ratings, chemistry, traits) ----------
+   Presented as a 4-page swipeable card, mirroring the in-game roster screen:
+   0 Bio (positions/age/handedness), 1 Ratings, 2 Pitching, 3 Chemistry & Traits.
+   Row order is a computed "depth chart" (starters 1-9, then BN/ROT/PEN) so it
+   stays identical across all four pages. */
+
+const TIER_ORDER = ["D-","D","D+","C-","C","C+","B-","B","B+","A-","A","A+","S"];
+function tierRank(letter){ const i = TIER_ORDER.indexOf(letter); return i<0 ? 0 : i; }
+
+const CHEM_META = {
+  CRA:{label:"Crafty",       color:"#4FA97A"},
+  SCH:{label:"Scholarly",    color:"#4FC3C9"},
+  SPI:{label:"Spirited",     color:"#D9C24F"},
+  DIS:{label:"Disciplined",  color:"#B24FA9"},
+  CMP:{label:"Competitive",  color:"#D97A3D"},
+};
+
+// Red -> magenta -> purple -> blue, used for both OVR badges and rating bars
+// (higher ratings read as "cooler"/blue, lower ratings read as "hot"/red).
+function gradientColor(t){
+  const stops = [[214,69,69],[196,68,120],[139,79,180],[90,100,210],[59,140,230]];
+  const positions = [0,0.3,0.55,0.8,1];
+  t = Math.max(0, Math.min(1, t));
+  for(let i=0;i<positions.length-1;i++){
+    if(t>=positions[i] && t<=positions[i+1]){
+      const lt = (t-positions[i])/(positions[i+1]-positions[i]);
+      const c0=stops[i], c1=stops[i+1];
+      const r=Math.round(c0[0]+(c1[0]-c0[0])*lt), g=Math.round(c0[1]+(c1[1]-c0[1])*lt), b=Math.round(c0[2]+(c1[2]-c0[2])*lt);
+      return `rgb(${r},${g},${b})`;
+    }
+  }
+  return `rgb(${stops[stops.length-1].join(",")})`;
+}
+function ratingColor(v){ return gradientColor(v/99); }
+function ovrColor(letter){
+  if(letter==="S") return "#2FC9D6";
+  return gradientColor(tierRank(letter)/(TIER_ORDER.length-2));
+}
+function ovrBadge(letter){
+  const bg = ovrColor(letter);
+  const textColor = letter==="S" ? "var(--navy-950)" : "#fff";
+  return `<span class="ovr-badge" style="background:${bg}; color:${textColor};">${letter}</span>`;
+}
+function ratingCell(v){
+  if(v===null || v===undefined) return `<div class="rating-cell rating-empty">&ndash;</div>`;
+  return `<div class="rating-cell" style="background:${ratingColor(v)}">${v}</div>`;
+}
+function chemBadge(code){
+  const meta = CHEM_META[code];
+  if(!meta) return code||"";
+  return `<span class="chem-badge" style="color:${meta.color}; border-color:${meta.color}; background:${meta.color}1f;" title="${meta.label}">${code}</span>`;
+}
+function traitPill(name, tier){
+  if(!name) return "";
+  return `<span class="trait-pill ${tier}">${name}</span>`;
+}
+function arsenalCell(list){
+  if(!list || !list.length) return `<div class="rating-cell rating-empty">&ndash;</div>`;
+  return list.map(p=>`<span class="pitch-tag">${p}</span>`).join("");
+}
+
+// Standard field order used to assign lineup slots (1/C, 2/1B, ... ) —
+// whichever rostered player at a position has the best OVR starts; the rest
+// fall to the bench. Pitchers are grouped into ROT (starters) / PEN (relief).
+const FIELD_ORDER = ["C","1B","2B","3B","SS","LF","CF","RF","DH"];
+
+function attributesGroups(){
+  const rows = attributesArr();
+  const byPos = {}, bench = [], rot = [], pen = [];
+  rows.forEach(p=>{
+    if(FIELD_ORDER.includes(p.pos)) (byPos[p.pos] = byPos[p.pos]||[]).push(p);
+    else if(p.pos.includes("SP")) rot.push(p);
+    else if(p.pos.includes("RP") || p.pos.includes("CP")) pen.push(p);
+    else bench.push(p);
+  });
+  const hitters = [];
+  FIELD_ORDER.forEach(pos=>{
+    const list = (byPos[pos]||[]).slice().sort((a,b)=> tierRank(b.ovr)-tierRank(a.ovr));
+    if(list.length){
+      hitters.push(list[0]);
+      list.slice(1).forEach(p=> bench.push(p));
+    }
+  });
+  bench.sort((a,b)=> tierRank(b.ovr)-tierRank(a.ovr));
+  bench.forEach(p=> hitters.push(p));
+  rot.sort((a,b)=> tierRank(b.ovr)-tierRank(a.ovr));
+  pen.sort((a,b)=> tierRank(b.ovr)-tierRank(a.ovr));
+  const pitchers = [...rot, ...pen];
+  return { hitters, pitchers };
+}
+
+const ATTR_PAGES = [
+  { title:"Bio",       heads:["Name","OVR","P. Pos","S. Pos","Age","Bat","Thr"] },
+  { title:"Ratings",   heads:["Name","OVR","POW","CON","SPD","FLD","ARM"] },
+  { title:"Pitching",  heads:["Name","OVR","VEL","JNK","ACC","Arsenal"] },
+  { title:"Chemistry", heads:["Name","OVR","Chem","Trait 1","Trait 2"] },
 ];
-let attrSort = {key:null, dir:1};
+let attrPage = 0;
+
+function renderAttributesPager(){
+  document.getElementById("attrPageDots").innerHTML = ATTR_PAGES.map((p,i)=>
+    `<button class="attr-page-dot ${i===attrPage?'active':''}" data-page="${i}" title="${p.title}" aria-label="${p.title}"></button>`
+  ).join("");
+  document.getElementById("attrPagePrev").disabled = attrPage===0;
+  document.getElementById("attrPageNext").disabled = attrPage===ATTR_PAGES.length-1;
+}
 
 function renderAttributesHead(){
-  document.getElementById("attributesHeadRow").innerHTML = ATTRIBUTE_COLS.map(c=>
-    `<th data-key="${c.key}" class="${attrSort.key===c.key?'sorted':''}">${c.label}</th>`
-  ).join("");
+  const headCells = ATTR_PAGES[attrPage].heads.map(h=>`<th>${h}</th>`).join("");
+  document.getElementById("attributesHitHeadRow").innerHTML = headCells;
+  document.getElementById("attributesPitHeadRow").innerHTML = headCells;
+}
+
+function attrRowCells(p){
+  const nameCell = `<td><a class="player-link" data-name="${escapeAttr(p.name)}">${p.name}</a></td>`;
+  const ovrCell = `<td>${ovrBadge(p.ovr)}</td>`;
+  let cells;
+  if(attrPage===0){
+    cells = `
+      <td>${p.pos}</td>
+      <td class="pos2-cell">${p.pos2 && p.pos2!=="--" ? p.pos2 : "&ndash;"}</td>
+      <td>${p.age}</td>
+      <td>${p.bat}</td>
+      <td>${p.thr}</td>`;
+  } else if(attrPage===1){
+    cells = ["pow","con","spd","fld","arm"].map(k=>`<td>${ratingCell(p[k])}</td>`).join("");
+  } else if(attrPage===2){
+    cells = ["vel","jnk","acc"].map(k=>`<td>${ratingCell(p[k])}</td>`).join("") + `<td>${arsenalCell(p.arsenal)}</td>`;
+  } else {
+    cells = `
+      <td>${chemBadge(p.chem)}</td>
+      <td>${traitPill(p.trait1, p.trait1Tier)}</td>
+      <td>${traitPill(p.trait2, p.trait2Tier)}</td>`;
+  }
+  return `<tr>${nameCell}${ovrCell}${cells}</tr>`;
+}
+
+function renderAttrTableBody(tbodyId, list){
+  const tbody = document.getElementById(tbodyId);
+  if(!list.length){
+    tbody.innerHTML = `<tr><td colspan="${ATTR_PAGES[attrPage].heads.length}" class="no-data-note">No attribute data on file for this season yet.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map(p=> attrRowCells(p)).join("");
 }
 
 function renderAttributesBody(){
-  let data = [...attributesArr()];
-  if(attrSort.key){
-    data.sort((a,b)=>{
-      const av=a[attrSort.key], bv=b[attrSort.key];
-      if(typeof av==="string") return av.localeCompare(bv)*attrSort.dir;
-      return (av-bv)*attrSort.dir;
-    });
-  }
-  const tbody = document.querySelector("#attributesTable tbody");
-  if(!data.length){
-    tbody.innerHTML = `<tr><td colspan="${ATTRIBUTE_COLS.length}" class="no-data-note">No attribute data on file for this season yet.</td></tr>`;
-    syncAttributesScrollTopWidth();
-    return;
-  }
-  tbody.innerHTML = data.map(p=>`
-    <tr>
-      ${ATTRIBUTE_COLS.map(c=>{
-        const v = p[c.key];
-        if(c.key==="name") return `<td><a class="player-link" data-name="${escapeAttr(p.name)}">${p.name}</a></td>`;
-        if(c.key==="team") return `<td>${teamTag(v)}</td>`;
-        if(c.key==="ovr") return `<td><span class="ovr-badge">${v}</span></td>`;
-        return `<td>${v}</td>`;
-      }).join("")}
-    </tr>
-  `).join("");
+  const { hitters, pitchers } = attributesGroups();
+  renderAttrTableBody("attributesHitBody", hitters);
+  renderAttrTableBody("attributesPitBody", pitchers);
   syncAttributesScrollTopWidth();
 }
 
-function syncAttributesScrollTopWidth(){
-  const table = document.getElementById("attributesTable");
-  const inner = document.getElementById("attributesScrollTopInner");
-  if(table && inner) inner.style.width = table.scrollWidth + "px";
+function goToAttrPage(i){
+  attrPage = Math.max(0, Math.min(ATTR_PAGES.length-1, i));
+  renderAttributesPager();
+  renderAttributesHead();
+  renderAttributesBody();
 }
 
-(function initAttributesScrollSync(){
-  const top = document.getElementById("attributesScrollTop");
-  const bottom = document.getElementById("attributesScrollBottom");
+document.getElementById("attrPagePrev").addEventListener("click", ()=> goToAttrPage(attrPage-1));
+document.getElementById("attrPageNext").addEventListener("click", ()=> goToAttrPage(attrPage+1));
+document.getElementById("attrPageDots").addEventListener("click", e=>{
+  const btn = e.target.closest(".attr-page-dot");
+  if(!btn) return;
+  goToAttrPage(Number(btn.dataset.page));
+});
+
+function syncAttributesScrollTopWidth(){
+  [["attributesHitTable","attributesHitScrollTopInner"],["attributesPitTable","attributesPitScrollTopInner"]].forEach(([tableId,innerId])=>{
+    const table = document.getElementById(tableId);
+    const inner = document.getElementById(innerId);
+    if(table && inner) inner.style.width = table.scrollWidth + "px";
+  });
+}
+
+function initScrollSync(topId, bottomId){
+  const top = document.getElementById(topId);
+  const bottom = document.getElementById(bottomId);
   if(!top || !bottom) return;
   let syncing = false;
   top.addEventListener("scroll", ()=>{
@@ -1309,8 +1577,11 @@ function syncAttributesScrollTopWidth(){
     top.scrollLeft = bottom.scrollLeft;
     syncing = false;
   });
-  window.addEventListener("resize", syncAttributesScrollTopWidth);
-})();
+}
+initScrollSync("attributesHitScrollTop", "attributesHitScrollBottom");
+initScrollSync("attributesPitScrollTop", "attributesPitScrollBottom");
+window.addEventListener("resize", syncAttributesScrollTopWidth);
+
 
 function renderGames(){
   if(!gamesArr().length){
@@ -1703,7 +1974,7 @@ document.getElementById("seasonSelect").addEventListener("change", e=>{
   state.season = e.target.value;
   standingsSort = {key:null, dir:1};
   playersSort = {key:null, dir:1};
-  attrSort = {key:null, dir:1};
+  attrPage = 0;
   renderAll();
 });
 
@@ -1782,16 +2053,6 @@ document.getElementById("playersHeadRow").addEventListener("click", e=>{
   renderPlayersBody();
 });
 
-document.getElementById("attributesHeadRow").addEventListener("click", e=>{
-  const th = e.target.closest("th");
-  if(!th) return;
-  const key = th.dataset.key;
-  attrSort.dir = (attrSort.key===key) ? -attrSort.dir : -1;
-  attrSort.key = key;
-  renderAttributesHead();
-  renderAttributesBody();
-});
-
 /* =========================================================================
    CSV IMPORT + PERSISTENCE
    ========================================================================= */
@@ -1803,6 +2064,7 @@ function renderAll(){
   renderLeaders();
   renderPlayersHead();
   renderPlayersBody();
+  renderAttributesPager();
   renderAttributesHead();
   renderAttributesBody();
   renderGames();
@@ -1877,12 +2139,14 @@ async function renderSheetUrlInputs(){
   const urls = await loadSheetUrls();
   const battersEl = document.getElementById("sheetBattersUrl");
   const pitchersEl = document.getElementById("sheetPitchersUrl");
+  const attributesEl = document.getElementById("sheetAttributesUrl");
   // Always refresh on a season switch (these links belong to a different
   // season now); otherwise only fill empty fields so an in-progress edit
   // within the same season doesn't get overwritten.
   if(seasonChanged || !teamsEl.value) teamsEl.value = urls.teams || "";
   if(battersEl && (seasonChanged || !battersEl.value)) battersEl.value = urls.batters || "";
   if(pitchersEl && (seasonChanged || !pitchersEl.value)) pitchersEl.value = urls.pitchers || "";
+  if(attributesEl && (seasonChanged || !attributesEl.value)) attributesEl.value = urls.attributes || "";
   sheetUrlsLoadedFor = state.season;
 }
 
@@ -1907,7 +2171,8 @@ async function syncFromSheets(){
   const teamsUrl = document.getElementById("sheetTeamsUrl").value.trim();
   const battersUrl = document.getElementById("sheetBattersUrl").value.trim();
   const pitchersUrl = document.getElementById("sheetPitchersUrl").value.trim();
-  if(!teamsUrl && !battersUrl && !pitchersUrl){
+  const attributesUrl = document.getElementById("sheetAttributesUrl").value.trim();
+  if(!teamsUrl && !battersUrl && !pitchersUrl && !attributesUrl){
     setStatus(statusEl, "Paste at least one sheet link first.", true);
     return;
   }
@@ -1935,7 +2200,14 @@ async function syncFromSheets(){
       await saveToStorage(`pitchers_${state.season}`, arr);
       synced.push(`${rows.length} pitchers`);
     }
-    await saveToStorage(`sheetUrls_${state.season}`, {teams:teamsUrl, batters:battersUrl, pitchers:pitchersUrl});
+    if(attributesUrl){
+      const rows = await fetchSheetCsv(attributesUrl);
+      const arr = attributesArr(); arr.length = 0;
+      rows.forEach(r=> arr.push(mapAttributeRow(r)));
+      await saveToStorage(`attributes_${state.season}`, arr);
+      synced.push(`${rows.length} attribute rows`);
+    }
+    await saveToStorage(`sheetUrls_${state.season}`, {teams:teamsUrl, batters:battersUrl, pitchers:pitchersUrl, attributes:attributesUrl});
     renderAll();
     setStatus(statusEl, `Synced ${synced.join(", ")}.`, false);
   }catch(err){
@@ -1964,6 +2236,15 @@ document.getElementById("battersTemplate").addEventListener("click", ()=>{
 });
 document.getElementById("pitchersTemplate").addEventListener("click", ()=>{
   downloadCsv(`pitching-template-${state.season}.csv`, pitchersArr());
+});
+document.getElementById("attributesTemplate").addEventListener("click", ()=>{
+  downloadCsv(`attributes-template-${state.season}.csv`, attributesArr().map(p=>({
+    name:p.name, team:p.team, pos:p.pos, pos2:p.pos2,
+    pow:p.pow, con:p.con, spd:p.spd, fld:p.fld, arm:p.arm,
+    vel:p.vel, jnk:p.jnk, acc:p.acc, arsenal:(p.arsenal||[]).join("/"),
+    bat:p.bat, thr:p.thr, age:p.age, chem:p.chem,
+    trait1:p.trait1, trait1Tier:p.trait1Tier, trait2:p.trait2, trait2Tier:p.trait2Tier, ovr:p.ovr
+  })));
 });
 
 function setStatus(el, msg, isError){
@@ -2026,6 +2307,25 @@ function mapPitcherRow(r){
   };
 }
 
+function numOrNull(v){
+  if(v===null || v===undefined || v==="") return null;
+  const n = Number(v);
+  return Number.isNaN(n) ? null : n;
+}
+function mapAttributeRow(r){
+  return {
+    name:r.name, team:r.team, pos:r.pos||"", pos2:r.pos2||"--",
+    pow:numOrNull(r.pow), con:numOrNull(r.con), spd:numOrNull(r.spd), fld:numOrNull(r.fld), arm:numOrNull(r.arm),
+    vel:numOrNull(r.vel), jnk:numOrNull(r.jnk), acc:numOrNull(r.acc),
+    arsenal: r.arsenal ? String(r.arsenal).split(/[,/|]+/).map(s=>s.trim()).filter(Boolean) : [],
+    bat:r.bat||"", thr:r.thr||"", age:Number(r.age)||0,
+    chem:r.chem||"",
+    trait1:r.trait1||"", trait1Tier:r.trait1Tier||"neutral",
+    trait2:r.trait2||"", trait2Tier:r.trait2Tier||"neutral",
+    ovr:r.ovr||""
+  };
+}
+
 async function saveToStorage(key, value){
   try{
     if(window.storage) await window.storage.set(key, JSON.stringify(value));
@@ -2069,6 +2369,18 @@ document.getElementById("pitchersFile").addEventListener("change", e=>{
   }, statusEl, `pitchers (${SEASONS[state.season].label})`);
 });
 
+document.getElementById("attributesFile").addEventListener("change", e=>{
+  const file = e.target.files[0]; if(!file) return;
+  const statusEl = document.getElementById("attributesStatus");
+  parseCsvFile(file, rows=>{
+    const arr = attributesArr();
+    arr.length = 0;
+    rows.forEach(r=> arr.push(mapAttributeRow(r)));
+    saveToStorage(`attributes_${state.season}`, arr);
+    renderAll();
+  }, statusEl, `attribute rows (${SEASONS[state.season].label})`);
+});
+
 document.getElementById("adminTeamSave").addEventListener("click", saveAdminTeamEditor);
 document.getElementById("sheetSyncBtn").addEventListener("click", syncFromSheets);
 
@@ -2095,6 +2407,7 @@ document.getElementById("resetData").addEventListener("click", async ()=>{
         await window.storage.delete(`teams_${id}`).catch(()=>{});
         await window.storage.delete(`batters_${id}`).catch(()=>{});
         await window.storage.delete(`pitchers_${id}`).catch(()=>{});
+        await window.storage.delete(`attributes_${id}`).catch(()=>{});
       }
     }
   }catch(e){}
@@ -2115,6 +2428,14 @@ async function loadFromStorage(){
     try{
       const p = await window.storage.get(`pitchers_${id}`);
       if(p && p.value){ const parsed = JSON.parse(p.value); SEASONS[id].pitchers.length=0; SEASONS[id].pitchers.push(...parsed); }
+    }catch(e){}
+    try{
+      const a = await window.storage.get(`attributes_${id}`);
+      if(a && a.value){
+        if(!SEASONS[id].attributes) SEASONS[id].attributes = [];
+        const parsed = JSON.parse(a.value);
+        SEASONS[id].attributes.length=0; SEASONS[id].attributes.push(...parsed);
+      }
     }catch(e){}
   }
 }
