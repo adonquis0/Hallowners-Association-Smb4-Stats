@@ -216,6 +216,19 @@
   tbody tr:hover{background:var(--navy-700);}
   tbody tr:nth-child(even){background:rgba(255,255,255,0.02);}
 
+  /* ---------- top scrollbar for players table ---------- */
+  .table-scroll-top{
+    overflow-x:auto;
+    overflow-y:hidden;
+    height:16px;
+  }
+  .table-scroll-top div{
+    height:1px;
+  }
+  .table-scroll-bottom{
+    overflow-x:auto;
+  }
+
   /* ---------- sticky player-name column (players table) ---------- */
   #playersTable th:first-child,
   #playersTable td:first-child{
@@ -631,7 +644,8 @@
       <button class="toggle-btn active" data-stat-view="batting">Batting</button>
       <button class="toggle-btn" data-stat-view="pitching">Pitching</button>
     </div>
-    <div style="overflow-x:auto;">
+    <div class="table-scroll-top" id="playersScrollTop"><div id="playersScrollTopInner"></div></div>
+    <div class="table-scroll-bottom" id="playersScrollBottom">
     <table id="playersTable">
       <thead><tr id="playersHeadRow"></tr></thead>
       <tbody></tbody>
@@ -935,7 +949,16 @@ function awardsArr(){ return SEASONS[state.season].awards; }
    RENDER
    ========================================================================= */
 
-function teamById(){ return Object.fromEntries(teamsArr().map(t=>[t.id,t])); }
+function normTeamKey(id){ return String(id==null?"":id).trim().toUpperCase(); }
+
+function teamById(){
+  const map = {};
+  teamsArr().forEach(t=>{
+    map[t.id] = t;
+    map[normTeamKey(t.id)] = t; // tolerate case/whitespace differences from imported data
+  });
+  return map;
+}
 
 function pct(w,l){ return (w/(w+l)).toFixed(3).replace(/^0/,""); }
 
@@ -952,7 +975,8 @@ function standingsData(){
 }
 
 function teamTag(id){
-  const t = teamById()[id];
+  const byId = teamById();
+  const t = byId[id] || byId[normTeamKey(id)];
   if(!t) return `<span class="team-tag" style="background:#8AA6C1">${id||"—"}</span>`;
   return `<span class="team-tag" style="background:${t.color}">${t.id}</span>`;
 }
@@ -1090,7 +1114,32 @@ function renderPlayersBody(){
       }).join("")}
     </tr>
   `).join("");
+  syncPlayersScrollTopWidth();
 }
+
+function syncPlayersScrollTopWidth(){
+  const table = document.getElementById("playersTable");
+  const inner = document.getElementById("playersScrollTopInner");
+  if(table && inner) inner.style.width = table.scrollWidth + "px";
+}
+
+(function initPlayersScrollSync(){
+  const top = document.getElementById("playersScrollTop");
+  const bottom = document.getElementById("playersScrollBottom");
+  if(!top || !bottom) return;
+  let syncing = false;
+  top.addEventListener("scroll", ()=>{
+    if(syncing) return; syncing = true;
+    bottom.scrollLeft = top.scrollLeft;
+    syncing = false;
+  });
+  bottom.addEventListener("scroll", ()=>{
+    if(syncing) return; syncing = true;
+    top.scrollLeft = bottom.scrollLeft;
+    syncing = false;
+  });
+  window.addEventListener("resize", syncPlayersScrollTopWidth);
+})();
 
 function renderGames(){
   if(!gamesArr().length){
