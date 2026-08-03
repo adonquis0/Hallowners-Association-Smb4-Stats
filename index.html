@@ -1,0 +1,1687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>League Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<style>
+  :root{
+    --navy-950:#0A1628;
+    --navy-800:#122542;
+    --navy-700:#1B3357;
+    --navy-600:#254273;
+    --cream:#F1ECDA;
+    --cream-dim:#C9C3AC;
+    --gold:#F5B700;
+    --gold-dim:#B98900;
+    --crimson:#D64545;
+    --green:#4FA97A;
+    --hairline: rgba(241,236,218,0.12);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--navy-950);
+    background-image:
+      radial-gradient(ellipse at top, rgba(37,66,115,0.35), transparent 60%),
+      repeating-linear-gradient(180deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 3px);
+    color:var(--cream);
+    font-family:'Inter',sans-serif;
+    font-feature-settings:'tnum' 1;
+    min-height:100vh;
+  }
+  a{color:inherit;}
+  ::selection{background:var(--gold); color:var(--navy-950);}
+
+  /* ---------- Marquee header ---------- */
+  .marquee{
+    padding:36px 24px 0;
+    max-width:1100px;
+    margin:0 auto;
+  }
+  .marquee-top{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:12px;
+    border-bottom:3px solid var(--gold);
+    padding-bottom:16px;
+  }
+  .league-name{
+    font-family:'Anton',sans-serif;
+    font-size:clamp(28px,5vw,52px);
+    letter-spacing:0.5px;
+    line-height:1;
+    text-transform:uppercase;
+    color:var(--cream);
+  }
+  .league-name span{color:var(--gold);}
+  .league-meta{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:var(--cream-dim);
+    text-transform:uppercase;
+    letter-spacing:1.5px;
+  }
+  .marquee-controls{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .season-select{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    color:var(--navy-950);
+    background:var(--gold);
+    border:1px solid var(--gold);
+    padding:7px 10px;
+    cursor:pointer;
+  }
+  .season-select:hover{background:var(--gold-dim);}
+
+  /* ---------- scoreboard strip (signature element) ---------- */
+  .scoreboard{
+    margin:22px 0 8px;
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:2px;
+    background:var(--navy-950);
+    border:1px solid var(--hairline);
+  }
+  .sb-cell{
+    background:var(--navy-800);
+    padding:12px 14px;
+    position:relative;
+  }
+  .sb-cell .sb-team{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:2px;
+    color:var(--cream-dim);
+    text-transform:uppercase;
+  }
+  .sb-cell .sb-record{
+    font-family:'Anton',sans-serif;
+    font-size:28px;
+    color:var(--gold);
+    letter-spacing:1px;
+    margin-top:4px;
+  }
+  .sb-cell .sb-sub{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    color:var(--cream-dim);
+    margin-top:2px;
+  }
+
+  /* ---------- Nav tabs ---------- */
+  .tabs{
+    max-width:1100px;
+    margin:28px auto 0;
+    padding:0 24px;
+    display:flex;
+    gap:4px;
+    flex-wrap:wrap;
+  }
+  .tab-btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    background:transparent;
+    color:var(--cream-dim);
+    border:1px solid var(--hairline);
+    border-bottom:none;
+    padding:10px 18px;
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  .tab-btn:hover{color:var(--cream);}
+  .tab-btn.active{
+    color:var(--navy-950);
+    background:var(--gold);
+    border-color:var(--gold);
+  }
+
+  main{
+    max-width:1100px;
+    margin:0 auto;
+    padding:0 24px 80px;
+    border-top:1px solid var(--hairline);
+  }
+  .panel{
+    background:var(--navy-800);
+    padding:28px;
+    display:none;
+  }
+  .panel.active{display:block;}
+
+  h2.section-title{
+    font-family:'Anton',sans-serif;
+    text-transform:uppercase;
+    font-size:22px;
+    letter-spacing:0.5px;
+    color:var(--gold);
+    margin:0 0 18px;
+    padding-bottom:10px;
+    border-bottom:1px solid var(--hairline);
+  }
+  h3.sub-title{
+    font-family:'Anton',sans-serif;
+    text-transform:uppercase;
+    font-size:15px;
+    letter-spacing:1px;
+    color:var(--cream);
+    margin:28px 0 12px;
+  }
+
+  /* ---------- Tables ---------- */
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:13px;
+  }
+  thead th{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    color:var(--navy-950);
+    background:var(--cream);
+    padding:9px 10px;
+    text-align:right;
+    cursor:pointer;
+    white-space:nowrap;
+    user-select:none;
+  }
+  thead th:first-child, thead th:nth-child(2){text-align:left;}
+  thead th.sorted{background:var(--gold);}
+  tbody td{
+    padding:8px 10px;
+    text-align:right;
+    border-bottom:1px solid var(--hairline);
+    white-space:nowrap;
+  }
+  tbody td:first-child, tbody td:nth-child(2){text-align:left;}
+  tbody tr:hover{background:var(--navy-700);}
+  tbody tr:nth-child(even){background:rgba(255,255,255,0.02);}
+
+  /* ---------- sticky player-name column (players table) ---------- */
+  #playersTable th:first-child,
+  #playersTable td:first-child{
+    position:sticky;
+    left:0;
+    z-index:1;
+  }
+  #playersTable thead th:first-child{
+    z-index:3;
+    background:var(--cream);
+  }
+  #playersTable thead th:first-child.sorted{background:var(--gold);}
+  #playersTable tbody td:first-child{
+    background:var(--navy-800);
+    box-shadow:1px 0 0 var(--hairline);
+  }
+  #playersTable tbody tr:nth-child(even) td:first-child{background:#152A4A;}
+  #playersTable tbody tr:hover td:first-child{background:var(--navy-700);}
+  .team-tag{
+    display:inline-block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    padding:2px 6px;
+    border-radius:2px;
+    color:var(--navy-950);
+    font-weight:600;
+  }
+
+  /* ---------- leader cards ---------- */
+  .leader-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+    gap:14px;
+    margin-bottom:8px;
+  }
+  .leader-card{
+    background:var(--navy-700);
+    border-left:3px solid var(--gold);
+    padding:14px 16px;
+  }
+  .leader-card .stat-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    color:var(--cream-dim);
+  }
+  .leader-card .stat-value{
+    font-family:'Anton',sans-serif;
+    font-size:26px;
+    color:var(--gold);
+    margin-top:4px;
+  }
+  .leader-card .stat-name{
+    font-size:13px;
+    color:var(--cream);
+    margin-top:2px;
+  }
+  .player-link{
+    color:inherit;
+    cursor:pointer;
+    text-decoration:none;
+    border-bottom:1px dotted var(--cream-dim);
+  }
+  .player-link:hover{color:var(--gold); border-bottom-color:var(--gold);}
+
+  /* ---------- Player overlay (player page) ---------- */
+  .player-overlay{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(10,22,40,0.92);
+    z-index:80;
+    overflow-y:auto;
+    padding:40px 20px 80px;
+  }
+  .player-overlay.open{display:block;}
+  .player-overlay-inner{
+    max-width:900px;
+    margin:0 auto;
+    background:var(--navy-800);
+    border:1px solid var(--hairline);
+  }
+  .player-overlay-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:16px;
+    padding:24px 28px;
+    border-bottom:3px solid var(--gold);
+    background:var(--navy-700);
+  }
+  .player-overlay-headline{
+    display:flex;
+    align-items:center;
+    gap:18px;
+  }
+  .player-avatar{
+    width:64px;
+    height:64px;
+    flex-shrink:0;
+    border-radius:50%;
+    background:var(--navy-600);
+    border:2px solid var(--gold);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:'Anton',sans-serif;
+    font-size:22px;
+    letter-spacing:0.5px;
+    color:var(--gold);
+    overflow:hidden;
+    position:relative;
+  }
+  .player-avatar img{
+    width:100%; height:100%; object-fit:cover;
+  }
+  .avatar-edit-btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    background:var(--navy-950);
+    border:1px solid var(--gold);
+    color:var(--gold);
+    padding:4px 8px;
+    cursor:pointer;
+    margin-top:6px;
+  }
+  .avatar-edit-btn:hover{background:var(--gold); color:var(--navy-950);}
+  #adminTeamBody input{
+    width:56px;
+    background:var(--navy-950);
+    border:1px solid var(--hairline);
+    color:var(--cream);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    padding:5px 6px;
+  }
+  #adminTeamBody input[type="text"]{width:64px;}
+  #adminTeamBody td:first-child{white-space:nowrap;}
+  .player-overlay-awards{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+    gap:12px;
+    margin-bottom:8px;
+  }
+  .player-overlay-awards .award-card{padding:12px 14px;}
+  .player-overlay-awards .award-name{font-size:10px;}
+  .player-overlay-awards .award-winner{font-size:16px;}
+  .player-overlay-name{
+    font-family:'Anton',sans-serif;
+    font-size:clamp(24px,4vw,36px);
+    text-transform:uppercase;
+    color:var(--cream);
+    line-height:1.1;
+  }
+  .player-overlay-meta{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    color:var(--cream-dim);
+    margin-top:8px;
+  }
+  .player-overlay-body{padding:24px 28px;}
+  .close-btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    background:transparent;
+    border:1px solid var(--gold);
+    color:var(--gold);
+    padding:9px 16px;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .close-btn:hover{background:var(--gold); color:var(--navy-950);}
+  tr.career-row td{
+    background:var(--navy-700);
+    font-weight:700;
+    color:var(--gold);
+    border-top:2px solid var(--gold);
+  }
+  .no-data-note{
+    color:var(--cream-dim);
+    font-size:12.5px;
+    font-style:italic;
+    padding:8px 0;
+  }
+
+  /* ---------- Box scores ---------- */
+  .game-list{display:flex; flex-direction:column; gap:10px;}
+  .game-row{
+    background:var(--navy-700);
+    padding:14px 16px;
+    cursor:pointer;
+    border:1px solid transparent;
+    transition:border-color .15s ease;
+  }
+  .game-row:hover{border-color:var(--gold);}
+  .game-row-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--cream-dim);
+    letter-spacing:1px;
+    text-transform:uppercase;
+  }
+  .game-row-score{
+    display:flex;
+    gap:24px;
+    margin-top:8px;
+    font-family:'Anton',sans-serif;
+    font-size:20px;
+  }
+  .game-row-score .win{color:var(--gold);}
+  .game-row-score .lose{color:var(--cream-dim);}
+  .linescore-wrap{display:none; margin-top:14px; overflow-x:auto;}
+  .linescore-wrap.open{display:block;}
+  .linescore{border-collapse:collapse; font-family:'IBM Plex Mono',monospace; font-size:12px;}
+  .linescore th, .linescore td{
+    border:1px solid var(--hairline);
+    padding:6px 10px;
+    text-align:center;
+    min-width:26px;
+  }
+  .linescore th{color:var(--cream-dim); font-weight:500;}
+  .linescore td.rhe{font-weight:700; color:var(--gold); background:rgba(245,183,0,0.08);}
+  .linescore td.team-name{text-align:left; color:var(--cream); font-weight:600;}
+
+  /* ---------- History / Awards ---------- */
+  .history-table td.champ{color:var(--gold); font-weight:600;}
+  .awards-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:14px;
+  }
+  .award-card{background:var(--navy-700); padding:14px 16px; border-top:2px solid var(--gold);}
+  .award-card .award-name{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    color:var(--cream-dim);
+  }
+  .award-card .award-winner{font-family:'Anton',sans-serif; font-size:19px; color:var(--cream); margin-top:4px;}
+  .award-card .award-detail{font-size:12px; color:var(--cream-dim); margin-top:2px;}
+
+  .toggle-row{display:flex; gap:8px; margin-bottom:16px;}
+  .toggle-btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    background:var(--navy-950);
+    border:1px solid var(--hairline);
+    color:var(--cream-dim);
+    padding:7px 14px;
+    cursor:pointer;
+  }
+  .toggle-btn.active{background:var(--gold); color:var(--navy-950); border-color:var(--gold);}
+
+  .import-block{
+    background:var(--navy-700);
+    padding:18px 20px;
+    margin-bottom:16px;
+    border-left:3px solid var(--gold);
+  }
+  .import-block h4{
+    font-family:'Anton',sans-serif;
+    text-transform:uppercase;
+    font-size:15px;
+    letter-spacing:0.5px;
+    margin:0 0 6px;
+    color:var(--cream);
+  }
+  .import-block p{
+    font-size:12.5px;
+    color:var(--cream-dim);
+    margin:0 0 12px;
+    line-height:1.5;
+  }
+  .import-row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+  .file-btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    background:var(--gold);
+    color:var(--navy-950);
+    border:none;
+    padding:9px 16px;
+    cursor:pointer;
+  }
+  .file-btn:hover{background:var(--gold-dim);}
+  .template-link{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    letter-spacing:0.5px;
+    color:var(--cream-dim);
+    text-decoration:underline;
+    cursor:pointer;
+    background:none;
+    border:none;
+    padding:0;
+  }
+  .template-link:hover{color:var(--gold);}
+  .import-status{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    margin-top:10px;
+    color:var(--green);
+  }
+  .import-status.error{color:var(--crimson);}
+  .reset-row{margin-top:20px;}
+  .reset-btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    background:transparent;
+    border:1px solid var(--crimson);
+    color:var(--crimson);
+    padding:8px 14px;
+    cursor:pointer;
+  }
+  .reset-btn:hover{background:var(--crimson); color:var(--cream);}
+
+  footer{
+    max-width:1100px;
+    margin:0 auto;
+    padding:24px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--cream-dim);
+    letter-spacing:1px;
+    text-align:center;
+  }
+
+  @media (max-width:640px){
+    .marquee{padding:24px 16px 0;}
+    .panel{padding:18px;}
+    table{font-size:11.5px;}
+    thead th, tbody td{padding:7px 6px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="marquee">
+  <div class="marquee-top">
+    <div class="league-name">HALLOWNERS <span>ASSOCIATION</span></div>
+    <div class="marquee-controls">
+      <select class="season-select" id="seasonSelect"></select>
+      <button class="season-select" id="adminSignInBtn" style="background:transparent; color:var(--gold); border-color:var(--gold);">Admin</button>
+    </div>
+  </div>
+  <div class="scoreboard" id="scoreboard"></div>
+</div>
+
+<nav class="tabs" id="tabs">
+  <button class="tab-btn active" data-tab="standings">Standings</button>
+  <button class="tab-btn" data-tab="players">Players</button>
+  <button class="tab-btn" data-tab="boxscores">Box Scores</button>
+  <button class="tab-btn" data-tab="history">History &amp; Awards</button>
+  <button class="tab-btn" data-tab="import" id="adminTabBtn">Admin</button>
+</nav>
+
+<main>
+  <section class="panel active" id="panel-standings">
+    <h2 class="section-title">Standings</h2>
+    <table id="standingsTable">
+      <thead>
+        <tr>
+          <th data-key="name">Team</th>
+          <th data-key="wins">W</th>
+          <th data-key="losses">L</th>
+          <th data-key="pct">PCT</th>
+          <th data-key="gb">GB</th>
+          <th data-key="last10">L10</th>
+          <th data-key="streak">STRK</th>
+          <th data-key="runsFor">RS</th>
+          <th data-key="runsAgainst">RA</th>
+          <th data-key="diff">DIFF</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="panel" id="panel-players">
+    <h2 class="section-title">Player Stats</h2>
+
+    <h3 class="sub-title">League Leaders</h3>
+    <div class="leader-grid" id="leaderGrid"></div>
+
+    <h3 class="sub-title">Full Stats</h3>
+    <div class="toggle-row">
+      <button class="toggle-btn active" data-stat-view="batting">Batting</button>
+      <button class="toggle-btn" data-stat-view="pitching">Pitching</button>
+    </div>
+    <div style="overflow-x:auto;">
+    <table id="playersTable">
+      <thead><tr id="playersHeadRow"></tr></thead>
+      <tbody></tbody>
+    </table>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-boxscores">
+    <h2 class="section-title">Recent Box Scores</h2>
+    <div class="game-list" id="gameList"></div>
+  </section>
+
+  <section class="panel" id="panel-history">
+    <h2 class="section-title">Season History</h2>
+    <table class="history-table" id="historyTable">
+      <thead><tr><th>Season</th><th>Champion</th><th>Runner-Up</th><th>FMVP</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <h3 class="sub-title">Awards</h3>
+    <div class="awards-grid" id="awardsGrid"></div>
+  </section>
+  <section class="panel" id="panel-import">
+    <h2 class="section-title">Admin</h2>
+    <p style="color:var(--cream-dim); font-size:13px; margin-top:-8px;">
+      This tab is only reachable with the admin link — regular visitors never see it. Updates save immediately and are visible to everyone who opens the page.
+    </p>
+
+    <div class="import-block">
+      <h4>Quick Update &mdash; Team Records</h4>
+      <p>Update after every series. Edit any field and hit Save; standings, scoreboard, and GB recalculate automatically.</p>
+      <div style="overflow-x:auto;">
+        <table id="adminTeamTable">
+          <thead><tr>
+            <th style="text-align:left;">Team</th><th>W</th><th>L</th><th>Streak</th><th>L10</th><th>RS</th><th>RA</th>
+          </tr></thead>
+          <tbody id="adminTeamBody"></tbody>
+        </table>
+      </div>
+      <div class="import-row" style="margin-top:12px;">
+        <button class="file-btn" id="adminTeamSave">Save Team Updates</button>
+      </div>
+      <div class="import-status" id="adminTeamStatus"></div>
+    </div>
+
+    <div class="import-block">
+      <h4>Player Photos</h4>
+      <p>Pick a player from the current season's roster and upload a photo. Images are resized automatically and shown on that player's page for everyone.</p>
+      <div class="import-row">
+        <select id="photoPlayerSelect" class="season-select" style="background:var(--navy-950); color:var(--cream); border-color:var(--hairline);"></select>
+        <label class="file-btn">Choose Photo<input type="file" accept="image/*" id="photoFile" style="display:none;"></label>
+      </div>
+      <div class="import-status" id="photoStatus"></div>
+    </div>
+
+    <div class="import-block">
+      <h4>Teams / Standings (bulk CSV)</h4>
+      <p>Columns: id, name, wins, losses, streak, last10, runsFor, runsAgainst, color (hex, optional)</p>
+      <div class="import-row">
+        <label class="file-btn">Choose CSV<input type="file" accept=".csv" id="teamsFile" style="display:none;"></label>
+        <button class="template-link" id="teamsTemplate">Download template</button>
+      </div>
+      <div class="import-status" id="teamsStatus"></div>
+    </div>
+
+    <div class="import-block">
+      <h4>Batting Stats</h4>
+      <p>Columns: name, team (id), pos, g, ab, h, hr, rbi, avg, obp, slg, ops, r, tb, 2b, 3b, bb, so, sb, cs, hbp, sac, sf, e</p>
+      <div class="import-row">
+        <label class="file-btn">Choose CSV<input type="file" accept=".csv" id="battersFile" style="display:none;"></label>
+        <button class="template-link" id="battersTemplate">Download template</button>
+      </div>
+      <div class="import-status" id="battersStatus"></div>
+    </div>
+
+    <div class="import-block">
+      <h4>Pitching Stats</h4>
+      <p>Columns: name, team (id), pos, w, l, era, r, er, whip, g, gs, sv, ip, h, avg, so, bb, wp, hr, cg, sho, hb, tbf, np</p>
+      <div class="import-row">
+        <label class="file-btn">Choose CSV<input type="file" accept=".csv" id="pitchersFile" style="display:none;"></label>
+        <button class="template-link" id="pitchersTemplate">Download template</button>
+      </div>
+      <div class="import-status" id="pitchersStatus"></div>
+    </div>
+
+    <div class="reset-row">
+      <button class="reset-btn" id="resetData">Reset to sample data</button>
+    </div>
+  </section>
+
+</main>
+
+<div class="player-overlay" id="playerOverlay">
+  <div class="player-overlay-inner">
+    <div class="player-overlay-header">
+      <div class="player-overlay-headline">
+        <div>
+          <div class="player-avatar" id="playerAvatar"></div>
+          <div id="overlayPhotoEditWrap" style="display:none;">
+            <label class="avatar-edit-btn">Change Photo<input type="file" accept="image/*" id="overlayPhotoFile" style="display:none;"></label>
+          </div>
+        </div>
+        <div>
+          <div class="player-overlay-name" id="playerName"></div>
+          <div class="player-overlay-meta" id="playerMeta"></div>
+        </div>
+      </div>
+      <button class="close-btn" id="closePlayerOverlay">&larr; Back</button>
+    </div>
+    <div class="player-overlay-body" id="playerBody"></div>
+  </div>
+</div>
+
+<footer>Showing sample data until it's updated &mdash; edit the DATA block directly, or use the admin link for this page to update team records, player photos, and stats.</footer>
+
+<script>
+/* =========================================================================
+   DATA — everything below is placeholder/sample data built around your
+   four teams (Crowmaxxors, Floor 7, Spirits, BCP). Replace freely: rename
+   the league, add/remove teams, update records after each series, add real
+   rosters and box scores. The rendering code below reads entirely from
+   these objects, so editing data is all you need to do.
+   ========================================================================= */
+
+const LEAGUE = { name: "HALLOWNERS ASSOCIATION" };
+
+/* =========================================================================
+   FIREBASE SETUP — fill this in with YOUR project's config (Project
+   Settings > General > Your apps > SDK setup and configuration, in the
+   Firebase console). This block is public in your page source by design —
+   it's not a secret. Real access control comes from Firestore Security
+   Rules + requiring sign-in below, not from hiding this object.
+   ========================================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyB20P7omiUZuZWng3e3aDNVRJall_FB-W8",
+  authDomain: "ha-smb4-stats.firebaseapp.com",
+  projectId: "ha-smb4-stats",
+  storageBucket: "ha-smb4-stats.firebasestorage.app",
+  messagingSenderId: "1:158066787328:web:f014212e54f4a15ae504e5",
+  appId: "YOUR_APP_ID"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// Shim that mimics the artifact-preview window.storage API (get/set/delete)
+// but persists to Firestore instead, so the rest of the app's storage calls
+// don't need to change at all.
+window.storage = {
+  async get(key){
+    const snap = await db.collection("kv").doc(key).get();
+    if(!snap.exists) throw new Error("not found: "+key);
+    return { key, value: snap.data().value };
+  },
+  async set(key, value){
+    await db.collection("kv").doc(key).set({ value });
+    return { key, value };
+  },
+  async delete(key){
+    await db.collection("kv").doc(key).delete();
+    return { key, deleted:true };
+  }
+};
+
+// Real admin state, driven by Firebase Auth (not a guessable URL key).
+// Create your one admin user in Firebase console under Authentication >
+// Users, then sign in with the Admin button in the header.
+let isAdmin = false;
+function setAdminUiVisible(on){
+  document.getElementById("adminTabBtn").style.display = on ? "" : "none";
+  document.getElementById("panel-import").style.display = on ? "" : "none";
+  document.getElementById("adminSignInBtn").textContent = on ? "Sign Out" : "Admin";
+  const wrap = document.getElementById("overlayPhotoEditWrap");
+  if(wrap) wrap.style.display = (on && overlayPlayerName) ? "block" : "none";
+  if(!on){
+    document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+    document.querySelector('.tab-btn[data-tab="standings"]').classList.add("active");
+    document.getElementById("panel-standings").classList.add("active");
+  }
+}
+firebase.auth().onAuthStateChanged(user=>{
+  isAdmin = !!user;
+  setAdminUiVisible(isAdmin);
+  renderAll();
+});
+
+// Each season is a self-contained slice: teams/standings, batting, pitching,
+// recent games, and that season's awards. The season selector in the header
+// switches every panel (Standings, Players, Box Scores, Awards) between these.
+// Add a new season by adding another key here — everything else (sorting,
+// leaders, player pages, CSV import) reads whichever season is selected.
+const SEASON_IDS = ["s2","s1"]; // most recent first
+
+const SEASONS = {
+
+  s2: {
+    label: "Season 2",
+    teams: [
+      { id:"CRW", name:"Crowmaxxors", color:"#F5B700", wins:9, losses:4,  streak:"W1", last10:"9-1", runsFor:111, runsAgainst:86  },
+      { id:"FL7", name:"Floor 7",     color:"#4FA97A", wins:7, losses:5,  streak:"L1", last10:"6-4", runsFor:118, runsAgainst:107 },
+      { id:"SPR", name:"Spirits",     color:"#8AA6C1", wins:6, losses:6, streak:"W1", last10:"5-5", runsFor:104, runsAgainst:110 },
+      { id:"BCP", name:"BCP",         color:"#D64545", wins:3,  losses:10, streak:"L1", last10:"3-7", runsFor:91,  runsAgainst:130 },
+    ],
+    batters: [
+      { name:"Coolude 951",       team:"CRW", pos:"SS",    g:13, ab:58, h:28, hr:1, rbi:11, avg:.483, obp:.500, slg:.690, ops:1.190, r:17, tb:40, "2b":5, "3b":2, bb:1, so:0,  sb:12, cs:1, hbp:1, sac:0, sf:0, e:2 },
+      { name:"3 Batters Away",    team:"CRW", pos:"C",     g:13, ab:53, h:20, hr:2, rbi:10, avg:.377, obp:.389, slg:.717, ops:1.106, r:14, tb:38, "2b":4, "3b":4, bb:0, so:4,  sb:0,  cs:1, hbp:1, sac:0, sf:0, e:2 },
+      { name:"Diddy Foid",        team:"CRW", pos:"CF",    g:12, ab:47, h:16, hr:0, rbi:7,  avg:.340, obp:.340, slg:.426, ops:.766,  r:12, tb:20, "2b":2, "3b":1, bb:1, so:3,  sb:10, cs:2, hbp:0, sac:1, sf:2, e:0 },
+      { name:"Screw Dismal",      team:"CRW", pos:"2B",    g:12, ab:46, h:18, hr:4, rbi:11, avg:.391, obp:.391, slg:.739, ops:1.130, r:10, tb:34, "2b":2, "3b":1, bb:0, so:3,  sb:0,  cs:0, hbp:0, sac:0, sf:0, e:0 },
+      { name:"Gaia Construct",    team:"CRW", pos:"1B",    g:10, ab:42, h:26, hr:1, rbi:18, avg:.619, obp:.652, slg:1.000,ops:1.652, r:9,  tb:42, "2b":9, "3b":2, bb:4, so:2,  sb:0,  cs:0, hbp:0, sac:0, sf:0, e:0 },
+      { name:"False Blud",        team:"CRW", pos:"3B",    g:12, ab:42, h:14, hr:0, rbi:10, avg:.333, obp:.333, slg:.452, ops:.786,  r:7,  tb:19, "2b":1, "3b":2, bb:0, so:2,  sb:6,  cs:0, hbp:0, sac:0, sf:0, e:0 },
+      { name:"Sniped by lukep50", team:"CRW", pos:"RF",    g:11, ab:37, h:13, hr:1, rbi:7,  avg:.351, obp:.375, slg:.541, ops:.916,  r:7,  tb:20, "2b":4, "3b":0, bb:2, so:2,  sb:0,  cs:1, hbp:1, sac:0, sf:0, e:0 },
+      { name:"Thirty Virus",      team:"CRW", pos:"SP/RP", g:10, ab:38, h:14, hr:1, rbi:10, avg:.368, obp:.359, slg:.553, ops:.912,  r:9,  tb:21, "2b":2, "3b":1, bb:0, so:0,  sb:3,  cs:0, hbp:1, sac:0, sf:0, e:0 },
+      { name:"I Show Speed",      team:"CRW", pos:"CF",    g:10, ab:37, h:11, hr:0, rbi:5,  avg:.297, obp:.333, slg:.432, ops:.766,  r:5,  tb:16, "2b":1, "3b":2, bb:2, so:2,  sb:0,  cs:0, hbp:0, sac:0, sf:0, e:0 },
+      { name:"Go Eat Dinner",     team:"CRW", pos:"SS",    g:10, ab:25, h:8,  hr:1, rbi:9,  avg:.320, obp:.370, slg:.600, ops:.970,  r:4,  tb:15, "2b":0, "3b":2, bb:1, so:1,  sb:0,  cs:1, hbp:0, sac:0, sf:0, e:0 },
+      { name:"Sigma Move",        team:"CRW", pos:"C",     g:8,  ab:26, h:11, hr:1, rbi:7,  avg:.423, obp:.444, slg:.577, ops:1.021, r:7,  tb:15, "2b":1, "3b":0, bb:0, so:1,  sb:7,  cs:1, hbp:0, sac:0, sf:0, e:0 },
+      { name:"Kanye West",        team:"CRW", pos:"CP",    g:10, ab:25, h:5,  hr:0, rbi:1,  avg:.200, obp:.200, slg:.200, ops:.400,  r:2,  tb:5,  "2b":0, "3b":0, bb:0, so:0,  sb:0,  cs:0, hbp:0, sac:0, sf:0, e:0 },
+      { name:"Bonzo Mask",        team:"CRW", pos:"1B",    g:6,  ab:17, h:8,  hr:0, rbi:1,  avg:.471, obp:.471, slg:.647, ops:1.118, r:5,  tb:11, "2b":3, "3b":0, bb:0, so:0,  sb:0,  cs:0, hbp:0, sac:0, sf:0, e:0 },
+      { name:"Fresh Man",         team:"CRW", pos:"SP/RP", g:1,  ab:1,  h:1,  hr:0, rbi:0,  avg:1.000,obp:1.000,slg:1.000,ops:2.000, r:1,  tb:1,  "2b":0, "3b":0, bb:0, so:0,  sb:0,  cs:0, hbp:0, sac:0, sf:0, e:0 },
+      { name:"Shadow Assassin",   team:"CRW", pos:"RP",    g:1,  ab:1,  h:0,  hr:0, rbi:0,  avg:.000, obp:.000, slg:.000, ops:.000,  r:0,  tb:0,  "2b":0, "3b":0, bb:0, so:1,  sb:0,  cs:0, hbp:0, sac:0, sf:0, e:0 },
+    ],
+    pitchers: [
+      { name:"Lucius Rokesmith",     team:"CRW", pos:"SP",    w:1, l:0, era:4.91,  r:15, er:14, whip:1.79, g:4, gs:4, sv:0, ip:25.2, h:42, avg:.382, so:8,  bb:4, wp:0, hr:2, cg:0, sho:0, hb:0, tbf:114, np:287 },
+      { name:"Patrick Pass",         team:"CRW", pos:"SP",    w:0, l:1, era:11.93, r:19, er:19, whip:2.51, g:3, gs:3, sv:0, ip:14.1, h:34, avg:.459, so:3,  bb:2, wp:0, hr:6, cg:0, sho:0, hb:0, tbf:76,  np:196 },
+      { name:"Frank Ocean",          team:"CRW", pos:"SP",    w:0, l:1, era:13.06, r:15, er:15, whip:2.52, g:3, gs:3, sv:0, ip:10.1, h:25, avg:.439, so:4,  bb:1, wp:0, hr:6, cg:0, sho:0, hb:0, tbf:58,  np:135 },
+      { name:"Quandale Dingle",      team:"CRW", pos:"SP",    w:2, l:0, era:4.30,  r:8,  er:7,  whip:1.50, g:3, gs:3, sv:0, ip:14.2, h:21, avg:.333, so:8,  bb:1, wp:0, hr:1, cg:1, sho:1, hb:0, tbf:64,  np:177 },
+      { name:"Fresh Man",            team:"CRW", pos:"SP/RP", w:2, l:0, era:2.16,  r:2,  er:2,  whip:0.60, g:5, gs:0, sv:0, ip:8.1,  h:5,  avg:.172, so:13, bb:0, wp:0, hr:1, cg:0, sho:0, hb:0, tbf:29,  np:74  },
+      { name:"Ouro The Omniscient",  team:"CRW", pos:"SP/RP", w:3, l:1, era:4.00,  r:8,  er:8,  whip:1.61, g:8, gs:0, sv:0, ip:18.0, h:28, avg:.368, so:3,  bb:1, wp:0, hr:3, cg:0, sho:0, hb:0, tbf:77,  np:207 },
+      { name:"Thirty Virus",         team:"CRW", pos:"SP/RP", w:0, l:0, era:7.71,  r:2,  er:2,  whip:1.29, g:1, gs:0, sv:0, ip:2.1,  h:3,  avg:.333, so:1,  bb:0, wp:0, hr:0, cg:0, sho:0, hb:0, tbf:9,   np:21  },
+      { name:"Shadow Assassin",      team:"CRW", pos:"RP",    w:0, l:0, era:12.27, r:5,  er:5,  whip:3.27, g:4, gs:0, sv:1, ip:3.2,  h:11, avg:.500, so:2,  bb:1, wp:0, hr:1, cg:0, sho:0, hb:0, tbf:23,  np:61  },
+      { name:"Down in Ohio",         team:"CRW", pos:"RP",    w:0, l:0, era:12.00, r:4,  er:4,  whip:2.00, g:3, gs:0, sv:0, ip:3.0,  h:6,  avg:.429, so:0,  bb:0, wp:0, hr:1, cg:0, sho:0, hb:0, tbf:14,  np:21  },
+      { name:"Kanye West",           team:"CRW", pos:"CP",    w:0, l:1, era:54.00, r:2,  er:2,  whip:6.00, g:1, gs:0, sv:0, ip:0.1,  h:2,  avg:.667, so:0,  bb:0, wp:0, hr:0, cg:0, sho:0, hb:0, tbf:3,   np:10  },
+      { name:"Revenant Horror",      team:"CRW", pos:"CP",    w:1, l:0, era:6.14,  r:6,  er:5,  whip:2.32, g:8, gs:0, sv:1, ip:7.1,  h:15, avg:.385, so:4,  bb:2, wp:0, hr:0, cg:0, sho:0, hb:0, tbf:41,  np:107 },
+    ],
+    games: [
+      { date:"2026-07-28", away:"BCP", home:"CRW", awayLine:[0,1,0,0,2,0,0,0,1], homeLine:[2,0,1,3,0,0,1,0,"x"], awayHits:7, homeHits:11, awayErr:2, homeErr:0 },
+      { date:"2026-07-27", away:"SPR", home:"FL7", awayLine:[1,0,0,1,0,2,0,0,0], homeLine:[0,1,1,0,1,0,0,0,"x"], awayHits:8, homeHits:6, awayErr:1, homeErr:1 },
+      { date:"2026-07-25", away:"FL7", home:"CRW", awayLine:[0,0,2,0,0,1,0,0,1], homeLine:[1,0,0,0,2,0,1,0,"x"], awayHits:9, homeHits:8, awayErr:0, homeErr:2 },
+      { date:"2026-07-24", away:"CRW", home:"SPR", awayLine:[3,0,0,1,0,0,2,0,0], homeLine:[0,1,0,0,0,1,0,0,1], awayHits:12, homeHits:5, awayErr:0, homeErr:1 },
+    ],
+    awards: [
+      { name:"MVP",        winner:"T. Blade", team:"SPR", detail:".342 AVG, 9 HR, 28 RBI" },
+      { name:"Cy Young",   winner:"L. Rokesmith", team:"CRW", detail:"2.41 ERA, 58 SO" },
+      { name:"Rookie",     winner:"D. Nakamura", team:"FL7", detail:".276 AVG in first season" },
+      { name:"Comeback",   winner:"K. Boone", team:"BCP", detail:"8 HR after slow start" },
+    ],
+  },
+
+  s1: {
+    label: "Season 1 — Final",
+    teams: [
+      { id:"SPR", name:"Spirits",     color:"#8AA6C1", wins:11, losses:5, streak:"W2", last10:"6-4", runsFor:155, runsAgainst:128 },
+      { id:"CRW", name:"Crowmaxxors", color:"#F5B700", wins:11, losses:5, streak:"L1", last10:"5-5", runsFor:148, runsAgainst:140 },
+      { id:"FL7", name:"Floor 7",     color:"#4FA97A", wins:3, losses:9, streak:"W1", last10:"4-6", runsFor:130, runsAgainst:150 },
+      { id:"BCP", name:"BCP",         color:"#D64545", wins:3, losses:9, streak:"L3", last10:"3-7", runsFor:122, runsAgainst:155 },
+    ],
+    batters: [],
+    pitchers: [],
+    games: [],
+    awards: [
+      { name:"MVP",        winner:"T. Blade", team:"SPR", detail:".680 AVG" },
+      { name:"Cy Young",   winner:"L. Rokesmith", team:"CRW", detail:"2.55 ERA, 0.96 WHIP" },
+    ],
+  },
+
+};
+
+// Season-by-season champion history (spans all seasons — not affected by the selector)
+const HISTORY = [
+  { season:"Season 1", champion:"Crowmaxxors",      runnerUp:"Spirits", fmvp:"C. 951" },
+];
+
+/* ---------- season state + qualification thresholds ----------
+   minPA / minIP control who qualifies for the League Leaders cards.
+   There's no UI for these on purpose — edit the numbers below to
+   change the qualification bar (e.g. minPA: 3.1 * games-played,
+   the usual per-team-game rate, or just a flat number like this). */
+const state = { season: SEASON_IDS[0], minPA: 20, minIP: 5 };
+
+function teamsArr(){ return SEASONS[state.season].teams; }
+function battersArr(){ return SEASONS[state.season].batters; }
+function pitchersArr(){ return SEASONS[state.season].pitchers; }
+function gamesArr(){ return SEASONS[state.season].games; }
+function awardsArr(){ return SEASONS[state.season].awards; }
+
+/* =========================================================================
+   RENDER
+   ========================================================================= */
+
+function teamById(){ return Object.fromEntries(teamsArr().map(t=>[t.id,t])); }
+
+function pct(w,l){ return (w/(w+l)).toFixed(3).replace(/^0/,""); }
+
+function standingsData(){
+  const sorted = [...teamsArr()].sort((a,b)=> (b.wins-b.losses) - (a.wins-a.losses));
+  const leaderDiff = sorted[0].wins - sorted[0].losses;
+  return sorted.map(t=>({
+    ...t,
+    pctVal: t.wins/(t.wins+t.losses),
+    pct: pct(t.wins,t.losses),
+    gb: t.id===sorted[0].id ? "-" : (((leaderDiff)-(t.wins-t.losses))/2).toFixed(1),
+    diff: (t.runsFor - t.runsAgainst) >= 0 ? "+"+(t.runsFor-t.runsAgainst) : (t.runsFor-t.runsAgainst)
+  }));
+}
+
+function teamTag(id){
+  const t = teamById()[id];
+  if(!t) return `<span class="team-tag" style="background:#8AA6C1">${id||"—"}</span>`;
+  return `<span class="team-tag" style="background:${t.color}">${t.id}</span>`;
+}
+
+function renderSeasonSelect(){
+  const sel = document.getElementById("seasonSelect");
+  sel.innerHTML = SEASON_IDS.map(id=>`<option value="${id}" ${id===state.season?"selected":""}>${SEASONS[id].label}</option>`).join("");
+}
+
+function renderScoreboard(){
+  const el = document.getElementById("scoreboard");
+  el.innerHTML = standingsData().map(t=>`
+    <div class="sb-cell" style="border-top:2px solid ${t.color}">
+      <div class="sb-team">${t.name}</div>
+      <div class="sb-record">${t.wins}-${t.losses}</div>
+      <div class="sb-sub">${t.streak} &middot; ${t.pct} PCT</div>
+    </div>
+  `).join("");
+}
+
+let standingsSort = {key:null, dir:1};
+function renderStandings(){
+  const rows = standingsData();
+  const tbody = document.querySelector("#standingsTable tbody");
+  tbody.innerHTML = rows.map(t=>`
+    <tr>
+      <td>${teamTag(t.id)} ${t.name}</td>
+      <td>${t.wins}</td>
+      <td>${t.losses}</td>
+      <td>${t.pct}</td>
+      <td>${t.gb}</td>
+      <td>${t.last10}</td>
+      <td>${t.streak}</td>
+      <td>${t.runsFor}</td>
+      <td>${t.runsAgainst}</td>
+      <td>${t.diff}</td>
+    </tr>
+  `).join("");
+}
+
+function paOf(b){ return (b.ab||0)+(b.bb||0)+(b.hbp||0)+(b.sac||0)+(b.sf||0); }
+
+function qualifiedBatters(){ return battersArr().filter(b=>paOf(b)>=state.minPA); }
+function qualifiedPitchers(){ return pitchersArr().filter(p=>(p.ip||0)>=state.minIP); }
+
+function renderLeaders(){
+  const top = (arr,key,label,fmt,asc)=>{
+    if(!arr.length) return {label, name:null, team:null, value:"—"};
+    const sorted=[...arr].sort((a,b)=> asc ? a[key]-b[key] : b[key]-a[key]);
+    const best=sorted[0];
+    return {label, name:best.name, team:best.team, value: fmt?fmt(best[key]):best[key]};
+  };
+  const qb = qualifiedBatters(), qp = qualifiedPitchers();
+  const cards = [
+    top(qb,"avg","AVG", v=>v.toFixed(3).replace(/^0/,"")),
+    top(qb,"hr","HR"),
+    top(qb,"rbi","RBI"),
+    top(qb,"ops","OPS", v=>v.toFixed(3)),
+    top(qp,"so","STRIKEOUTS"),
+    top(qp,"era","ERA", v=>v.toFixed(2), true),
+  ];
+  document.getElementById("leaderGrid").innerHTML = cards.map(c=>`
+    <div class="leader-card">
+      <div class="stat-label">${c.label}</div>
+      <div class="stat-value">${c.value}</div>
+      <div class="stat-name">${c.name ? `${teamTag(c.team)} <a class="player-link" data-name="${escapeAttr(c.name)}">${c.name}</a>` : "No qualifiers"}</div>
+    </div>
+  `).join("");
+}
+
+const BATTING_COLS = [
+  {key:"name",label:"Player"},{key:"team",label:"Tm"},{key:"pos",label:"Pos"},
+  {key:"g",label:"G"},{key:"ab",label:"AB"},{key:"h",label:"H"},
+  {key:"hr",label:"HR"},{key:"rbi",label:"RBI"},
+  {key:"avg",label:"AVG",fmt:v=>v.toFixed(3).replace(/^0/,"")},
+  {key:"obp",label:"OBP",fmt:v=>v.toFixed(3).replace(/^0/,"")},
+  {key:"slg",label:"SLG",fmt:v=>v.toFixed(3).replace(/^0/,"")},
+  {key:"ops",label:"OPS",fmt:v=>v.toFixed(3)},
+  {key:"r",label:"R"},{key:"tb",label:"TB"},
+  {key:"2b",label:"2B"},{key:"3b",label:"3B"},
+  {key:"bb",label:"BB"},{key:"so",label:"SO"},
+  {key:"sb",label:"SB"},{key:"cs",label:"CS"},
+  {key:"hbp",label:"HBP"},{key:"sac",label:"SAC"},{key:"sf",label:"SF"},{key:"e",label:"E"},
+];
+const PITCHING_COLS = [
+  {key:"name",label:"Player"},{key:"team",label:"Tm"},{key:"pos",label:"Pos"},
+  {key:"w",label:"W"},{key:"l",label:"L"},
+  {key:"era",label:"ERA",fmt:v=>v.toFixed(2)},
+  {key:"r",label:"R"},{key:"er",label:"ER"},
+  {key:"whip",label:"WHIP",fmt:v=>v.toFixed(2)},
+  {key:"g",label:"G"},{key:"gs",label:"GS"},{key:"sv",label:"SV"},
+  {key:"ip",label:"IP",fmt:v=>v.toFixed(1)},
+  {key:"h",label:"H"},
+  {key:"avg",label:"AVG",fmt:v=>v.toFixed(3).replace(/^0/,"")},
+  {key:"so",label:"SO"},{key:"bb",label:"BB"},{key:"wp",label:"WP"},
+  {key:"hr",label:"HR"},{key:"cg",label:"CG"},{key:"sho",label:"SHO"},
+  {key:"hb",label:"HB"},{key:"tbf",label:"TBF"},{key:"np",label:"NP"},
+];
+
+let currentStatView = "batting";
+let playersSort = {key:null, dir:1};
+
+function escapeAttr(s){ return String(s).replace(/"/g,"&quot;"); }
+
+function renderPlayersHead(){
+  const cols = currentStatView==="batting" ? BATTING_COLS : PITCHING_COLS;
+  document.getElementById("playersHeadRow").innerHTML = cols.map(c=>
+    `<th data-key="${c.key}" class="${playersSort.key===c.key?'sorted':''}">${c.label}</th>`
+  ).join("");
+}
+
+function renderPlayersBody(){
+  const cols = currentStatView==="batting" ? BATTING_COLS : PITCHING_COLS;
+  let data = [...(currentStatView==="batting"?battersArr():pitchersArr())];
+  if(playersSort.key){
+    data.sort((a,b)=>{
+      const av=a[playersSort.key], bv=b[playersSort.key];
+      if(typeof av==="string") return av.localeCompare(bv)*playersSort.dir;
+      return (av-bv)*playersSort.dir;
+    });
+  }
+  const tbody = document.querySelector("#playersTable tbody");
+  if(!data.length){
+    tbody.innerHTML = `<tr><td colspan="${cols.length}" class="no-data-note">No ${currentStatView} stats on file for this season yet — import a CSV on the Import Data tab.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = data.map(p=>`
+    <tr>
+      ${cols.map(c=>{
+        let v = p[c.key];
+        if(c.key==="name") return `<td><a class="player-link" data-name="${escapeAttr(p.name)}">${p.name}</a></td>`;
+        if(c.key==="team") return `<td>${teamTag(v)}</td>`;
+        if(c.fmt) v = c.fmt(v);
+        return `<td>${v}</td>`;
+      }).join("")}
+    </tr>
+  `).join("");
+}
+
+function renderGames(){
+  if(!gamesArr().length){
+    document.getElementById("gameList").innerHTML = `<div class="no-data-note">No box scores on file for this season yet.</div>`;
+    return;
+  }
+  document.getElementById("gameList").innerHTML = gamesArr().map((g,i)=>{
+    const awayTotal = g.awayLine.reduce((s,v)=>s+(v==="x"?0:v),0);
+    const homeTotal = g.homeLine.reduce((s,v)=>s+(v==="x"?0:v),0);
+    const awayWin = awayTotal>homeTotal;
+    return `
+    <div class="game-row" data-idx="${i}">
+      <div class="game-row-top">
+        <span>${g.date}</span>
+        <span>Box Score &darr;</span>
+      </div>
+      <div class="game-row-score">
+        <span class="${awayWin?'win':'lose'}">${teamById()[g.away].name} ${awayTotal}</span>
+        <span class="${!awayWin?'win':'lose'}">${teamById()[g.home].name} ${homeTotal}</span>
+      </div>
+      <div class="linescore-wrap" id="line-${i}">
+        ${linescoreTable(g)}
+      </div>
+    </div>`;
+  }).join("");
+
+  document.querySelectorAll(".game-row").forEach(row=>{
+    row.addEventListener("click", ()=>{
+      document.getElementById("line-"+row.dataset.idx).classList.toggle("open");
+    });
+  });
+}
+
+function linescoreTable(g){
+  const innHeads = g.homeLine.map((_,i)=>`<th>${i+1}</th>`).join("");
+  const rowOf = (label,line,hits,err)=>`
+    <tr>
+      <td class="team-name">${label}</td>
+      ${line.map(v=>`<td>${v}</td>`).join("")}
+      <td class="rhe">${line.reduce((s,v)=>s+(v==="x"?0:v),0)}</td>
+      <td class="rhe">${hits}</td>
+      <td class="rhe">${err}</td>
+    </tr>`;
+  return `<table class="linescore">
+    <thead><tr><th></th>${innHeads}<th>R</th><th>H</th><th>E</th></tr></thead>
+    <tbody>
+      ${rowOf(teamById()[g.away].name, g.awayLine, g.awayHits, g.awayErr)}
+      ${rowOf(teamById()[g.home].name, g.homeLine, g.homeHits, g.homeErr)}
+    </tbody>
+  </table>`;
+}
+
+function renderHistory(){
+  document.querySelector("#historyTable tbody").innerHTML = HISTORY.map(h=>`
+    <tr>
+      <td>${h.season}</td>
+      <td class="champ">${h.champion}</td>
+      <td>${h.runnerUp}</td>
+      <td>${h.fmvp}</td>
+    </tr>
+  `).join("");
+
+  document.getElementById("awardsGrid").innerHTML = awardsArr().map(a=>`
+    <div class="award-card">
+      <div class="award-name">${a.name}</div>
+      <div class="award-winner">${a.winner}</div>
+      <div class="award-detail">${teamById()[a.team].name}${a.detail ? " &middot; "+a.detail : ""}</div>
+    </div>
+  `).join("");
+}
+
+/* =========================================================================
+   PLAYER PAGE — aggregates a player's rows across every season into a
+   Baseball-Reference-style career page (season-by-season + career totals).
+   ========================================================================= */
+
+function ipToOuts(ip){
+  const whole = Math.trunc(ip);
+  const frac = Math.round((ip-whole)*10); // .1 = 1 out, .2 = 2 outs
+  return whole*3+frac;
+}
+function outsToIp(outs){
+  const whole = Math.trunc(outs/3);
+  const frac = outs%3;
+  return whole+frac/10;
+}
+
+function initials(name){
+  const parts = String(name).trim().split(/\s+/);
+  const first = parts[0] ? parts[0][0] : "";
+  const last = parts.length>1 ? parts[parts.length-1][0] : "";
+  return (first+last).toUpperCase();
+}
+
+function getPlayerAwards(name){
+  const won = [];
+  [...SEASON_IDS].reverse().forEach(id=>{ // oldest -> newest
+    const season = SEASONS[id];
+    (season.awards||[]).filter(a=>a.winner===name).forEach(a=> won.push({...a, seasonLabel:season.label}));
+  });
+  return won;
+}
+
+function getPlayerCareer(name){
+  const battingRows = [], pitchingRows = [];
+  [...SEASON_IDS].reverse().forEach(id=>{ // oldest -> newest
+    const season = SEASONS[id];
+    const b = season.batters.find(x=>x.name===name);
+    if(b) battingRows.push({seasonId:id, label:season.label, ...b});
+    const p = season.pitchers.find(x=>x.name===name);
+    if(p) pitchingRows.push({seasonId:id, label:season.label, ...p});
+  });
+  return {battingRows, pitchingRows};
+}
+
+function careerBattingTotals(rows){
+  const t = {g:0,ab:0,h:0,hr:0,rbi:0,r:0,tb:0,"2b":0,"3b":0,bb:0,so:0,sb:0,cs:0,hbp:0,sac:0,sf:0,e:0};
+  rows.forEach(r=>{ Object.keys(t).forEach(k=> t[k]+= (r[k]||0)); });
+  t.avg = t.ab ? t.h/t.ab : 0;
+  t.obp = (t.ab+t.bb+t.hbp+t.sf) ? (t.h+t.bb+t.hbp)/(t.ab+t.bb+t.hbp+t.sf) : 0;
+  t.slg = t.ab ? t.tb/t.ab : 0;
+  t.ops = t.obp+t.slg;
+  return t;
+}
+
+function careerPitchingTotals(rows){
+  const t = {w:0,l:0,r:0,er:0,g:0,gs:0,sv:0,h:0,so:0,bb:0,wp:0,hr:0,cg:0,sho:0,hb:0,tbf:0,np:0};
+  let outs = 0;
+  rows.forEach(r=>{ Object.keys(t).forEach(k=> t[k]+= (r[k]||0)); outs += ipToOuts(r.ip||0); });
+  t.ip = outsToIp(outs);
+  t.era = outs ? (t.er*9)/(outs/3) : 0;
+  t.whip = outs ? (t.bb+t.h)/(outs/3) : 0;
+  return t;
+}
+
+function fmtAvg(v){ return v.toFixed(3).replace(/^0/,""); }
+
+/* ---------- player photos (stored in shared key/value storage) ---------- */
+
+function photoKey(name){
+  return "photo_" + String(name).replace(/[^a-zA-Z0-9]+/g,"_").slice(0,150);
+}
+
+// Shrinks/compresses an uploaded image before storing it, so it stays well
+// under the per-key size limit and loads fast for visitors.
+function resizeImageFile(file, maxDim){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onerror = ()=> reject(new Error("Couldn't read that file."));
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onerror = ()=> reject(new Error("That file doesn't look like an image."));
+      img.onload = ()=>{
+        const scale = Math.min(1, maxDim/Math.max(img.width, img.height));
+        const w = Math.round(img.width*scale), h = Math.round(img.height*scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function savePlayerPhoto(name, dataUrl){
+  if(!window.storage) throw new Error("Storage isn't available here.");
+  await window.storage.set(photoKey(name), dataUrl, true);
+}
+
+async function loadPlayerPhoto(name){
+  if(!window.storage) return null;
+  try{
+    const res = await window.storage.get(photoKey(name), true);
+    return res ? res.value : null;
+  }catch(e){
+    return null; // no photo saved for this player yet
+  }
+}
+
+function setAvatarPhoto(dataUrl){
+  document.getElementById("playerAvatar").innerHTML = `<img src="${dataUrl}" alt="">`;
+}
+
+let overlayPlayerName = null;
+
+function openPlayerPage(name){
+  const { battingRows, pitchingRows } = getPlayerCareer(name);
+  if(!battingRows.length && !pitchingRows.length) return;
+  const latest = battingRows[battingRows.length-1] || pitchingRows[pitchingRows.length-1];
+
+  document.getElementById("playerName").textContent = name;
+  document.getElementById("playerMeta").innerHTML =
+    `${teamTag(latest.team)} ${teamById()[latest.team]?teamById()[latest.team].name:latest.team} &middot; ${latest.pos||""} &middot; ${battingRows.length+pitchingRows.length>0?(new Set([...battingRows,...pitchingRows].map(r=>r.seasonId))).size:0} season(s) on record`;
+
+  overlayPlayerName = name;
+  const avatarTeam = teamById()[latest.team];
+  const avatarEl = document.getElementById("playerAvatar");
+  avatarEl.textContent = initials(name);
+  avatarEl.style.borderColor = avatarTeam ? avatarTeam.color : "var(--gold)";
+  loadPlayerPhoto(name).then(dataUrl=>{
+    if(dataUrl && overlayPlayerName===name) setAvatarPhoto(dataUrl);
+  });
+  document.getElementById("overlayPhotoEditWrap").style.display = isAdmin ? "block" : "none";
+
+  let html = "";
+
+  const playerAwards = getPlayerAwards(name);
+  if(playerAwards.length){
+    html += `<h3 class="sub-title">Awards</h3>
+    <div class="player-overlay-awards">
+      ${playerAwards.map(a=>`
+        <div class="award-card">
+          <div class="award-name">${a.seasonLabel} &middot; ${a.name}</div>
+          <div class="award-winner">${a.winner}</div>
+          ${a.detail ? `<div class="award-detail">${a.detail}</div>` : ""}
+        </div>
+      `).join("")}
+    </div>`;
+  }
+
+  if(battingRows.length){
+    const career = careerBattingTotals(battingRows);
+    html += `<h3 class="sub-title">Batting</h3>
+    <div style="overflow-x:auto;">
+    <table>
+      <thead><tr><th>Season</th><th>Tm</th><th>G</th><th>AB</th><th>H</th><th>HR</th><th>RBI</th><th>AVG</th><th>OBP</th><th>SLG</th><th>OPS</th></tr></thead>
+      <tbody>
+        ${battingRows.map(r=>`
+          <tr>
+            <td>${r.label}</td><td>${teamTag(r.team)} ${r.team}</td>
+            <td>${r.g}</td><td>${r.ab}</td><td>${r.h}</td><td>${r.hr}</td><td>${r.rbi}</td>
+            <td>${fmtAvg(r.avg)}</td><td>${fmtAvg(r.obp)}</td><td>${fmtAvg(r.slg)}</td><td>${r.ops.toFixed(3)}</td>
+          </tr>`).join("")}
+        <tr class="career-row">
+          <td>Career</td><td>—</td>
+          <td>${career.g}</td><td>${career.ab}</td><td>${career.h}</td><td>${career.hr}</td><td>${career.rbi}</td>
+          <td>${fmtAvg(career.avg)}</td><td>${fmtAvg(career.obp)}</td><td>${fmtAvg(career.slg)}</td><td>${career.ops.toFixed(3)}</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>`;
+  }
+
+  if(pitchingRows.length){
+    const career = careerPitchingTotals(pitchingRows);
+    html += `<h3 class="sub-title">Pitching</h3>
+    <div style="overflow-x:auto;">
+    <table>
+      <thead><tr><th>Season</th><th>Tm</th><th>W</th><th>L</th><th>ERA</th><th>G</th><th>GS</th><th>SV</th><th>IP</th><th>H</th><th>SO</th><th>BB</th><th>WHIP</th></tr></thead>
+      <tbody>
+        ${pitchingRows.map(r=>`
+          <tr>
+            <td>${r.label}</td><td>${teamTag(r.team)} ${r.team}</td>
+            <td>${r.w}</td><td>${r.l}</td><td>${r.era.toFixed(2)}</td>
+            <td>${r.g}</td><td>${r.gs}</td><td>${r.sv}</td><td>${r.ip.toFixed(1)}</td>
+            <td>${r.h}</td><td>${r.so}</td><td>${r.bb}</td><td>${r.whip.toFixed(2)}</td>
+          </tr>`).join("")}
+        <tr class="career-row">
+          <td>Career</td><td>—</td>
+          <td>${career.w}</td><td>${career.l}</td><td>${career.era.toFixed(2)}</td>
+          <td>${career.g}</td><td>${career.gs}</td><td>${career.sv}</td><td>${career.ip.toFixed(1)}</td>
+          <td>${career.h}</td><td>${career.so}</td><td>${career.bb}</td><td>${career.whip.toFixed(2)}</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>`;
+  }
+
+  if(!battingRows.length && !pitchingRows.length){
+    html = `<div class="no-data-note">No recorded stats for this player.</div>`;
+  }
+
+  document.getElementById("playerBody").innerHTML = html;
+  document.getElementById("playerOverlay").classList.add("open");
+}
+
+function closePlayerPage(){
+  document.getElementById("playerOverlay").classList.remove("open");
+  overlayPlayerName = null;
+}
+
+/* ---------- interactions ---------- */
+
+document.getElementById("overlayPhotoFile").addEventListener("change", async e=>{
+  const file = e.target.files[0]; if(!file || !overlayPlayerName) return;
+  const name = overlayPlayerName;
+  try{
+    const dataUrl = await resizeImageFile(file, 400);
+    await savePlayerPhoto(name, dataUrl);
+    if(overlayPlayerName===name) setAvatarPhoto(dataUrl);
+  }catch(err){
+    alert(err.message || "Couldn't save that photo.");
+  }
+  e.target.value = "";
+});
+
+document.getElementById("adminSignInBtn").addEventListener("click", async ()=>{
+  if(isAdmin){
+    firebase.auth().signOut();
+    return;
+  }
+  const email = prompt("Admin email:");
+  if(!email) return;
+  const password = prompt("Password:");
+  if(!password) return;
+  try{
+    await firebase.auth().signInWithEmailAndPassword(email, password);
+  }catch(err){
+    alert("Sign-in failed: " + err.message);
+  }
+});
+
+document.getElementById("seasonSelect").addEventListener("change", e=>{
+  state.season = e.target.value;
+  standingsSort = {key:null, dir:1};
+  playersSort = {key:null, dir:1};
+  renderAll();
+});
+
+document.addEventListener("click", e=>{
+  const link = e.target.closest(".player-link");
+  if(!link) return;
+  openPlayerPage(link.dataset.name);
+});
+
+document.getElementById("closePlayerOverlay").addEventListener("click", closePlayerPage);
+document.getElementById("playerOverlay").addEventListener("click", e=>{
+  if(e.target.id==="playerOverlay") closePlayerPage();
+});
+
+document.getElementById("tabs").addEventListener("click", e=>{
+  const btn = e.target.closest(".tab-btn");
+  if(!btn) return;
+  document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
+  document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+  btn.classList.add("active");
+  document.getElementById("panel-"+btn.dataset.tab).classList.add("active");
+});
+
+document.querySelector("#standingsTable thead").addEventListener("click", e=>{
+  const th = e.target.closest("th");
+  if(!th) return;
+  const key = th.dataset.key;
+  standingsSort.dir = (standingsSort.key===key) ? -standingsSort.dir : 1;
+  standingsSort.key = key;
+  // simple re-sort of the current season's standings view
+  const rows = standingsData().sort((a,b)=>{
+    const av=a[key], bv=b[key];
+    const an = parseFloat(av), bn = parseFloat(bv);
+    if(!isNaN(an) && !isNaN(bn)) return (an-bn)*standingsSort.dir;
+    return String(av).localeCompare(String(bv))*standingsSort.dir;
+  });
+  document.querySelector("#standingsTable tbody").innerHTML = rows.map(t=>`
+    <tr>
+      <td>${teamTag(t.id)} ${t.name}</td>
+      <td>${t.wins}</td><td>${t.losses}</td><td>${t.pct}</td><td>${t.gb}</td>
+      <td>${t.last10}</td><td>${t.streak}</td><td>${t.runsFor}</td><td>${t.runsAgainst}</td><td>${t.diff}</td>
+    </tr>
+  `).join("");
+});
+
+document.querySelectorAll(".toggle-btn").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll(".toggle-btn").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    currentStatView = btn.dataset.statView;
+    playersSort = {key:null, dir:1};
+    renderPlayersHead();
+    renderPlayersBody();
+  });
+});
+
+document.getElementById("playersHeadRow").addEventListener("click", e=>{
+  const th = e.target.closest("th");
+  if(!th) return;
+  const key = th.dataset.key;
+  playersSort.dir = (playersSort.key===key) ? -playersSort.dir : 1;
+  playersSort.key = key;
+  renderPlayersHead();
+  renderPlayersBody();
+});
+
+/* =========================================================================
+   CSV IMPORT + PERSISTENCE
+   ========================================================================= */
+
+function renderAll(){
+  renderSeasonSelect();
+  renderScoreboard();
+  renderStandings();
+  renderLeaders();
+  renderPlayersHead();
+  renderPlayersBody();
+  renderGames();
+  renderHistory();
+  if(isAdmin){
+    renderAdminTeamEditor();
+    renderPhotoPlayerSelect();
+  }
+}
+
+/* ---------- admin: quick team-record editor ---------- */
+
+function renderAdminTeamEditor(){
+  const tbody = document.getElementById("adminTeamBody");
+  if(!tbody) return;
+  tbody.innerHTML = teamsArr().map((t,i)=>`
+    <tr data-idx="${i}">
+      <td>${teamTag(t.id)} ${t.name}</td>
+      <td><input type="number" data-field="wins" value="${t.wins}"></td>
+      <td><input type="number" data-field="losses" value="${t.losses}"></td>
+      <td><input type="text" data-field="streak" value="${t.streak}"></td>
+      <td><input type="text" data-field="last10" value="${t.last10}"></td>
+      <td><input type="number" data-field="runsFor" value="${t.runsFor}"></td>
+      <td><input type="number" data-field="runsAgainst" value="${t.runsAgainst}"></td>
+    </tr>
+  `).join("");
+}
+
+async function saveAdminTeamEditor(){
+  const arr = teamsArr();
+  document.querySelectorAll("#adminTeamBody tr").forEach(row=>{
+    const t = arr[Number(row.dataset.idx)];
+    if(!t) return;
+    row.querySelectorAll("input").forEach(inp=>{
+      const field = inp.dataset.field;
+      t[field] = (field==="streak"||field==="last10") ? inp.value : (Number(inp.value)||0);
+    });
+  });
+  await saveToStorage(`teams_${state.season}`, arr);
+  renderAll();
+  setStatus(document.getElementById("adminTeamStatus"), "Saved.", false);
+}
+
+/* ---------- admin: player photo upload ---------- */
+
+function renderPhotoPlayerSelect(){
+  const sel = document.getElementById("photoPlayerSelect");
+  if(!sel) return;
+  const names = Array.from(new Set([...battersArr(), ...pitchersArr()].map(p=>p.name))).sort();
+  sel.innerHTML = names.map(n=>`<option value="${escapeAttr(n)}">${n}</option>`).join("");
+}
+
+function downloadCsv(filename, rows){
+  const csv = Papa.unparse(rows);
+  const blob = new Blob([csv], {type:"text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById("teamsTemplate").addEventListener("click", ()=>{
+  downloadCsv(`teams-template-${state.season}.csv`, teamsArr().map(t=>({
+    id:t.id, name:t.name, wins:t.wins, losses:t.losses, streak:t.streak,
+    last10:t.last10, runsFor:t.runsFor, runsAgainst:t.runsAgainst, color:t.color
+  })));
+});
+document.getElementById("battersTemplate").addEventListener("click", ()=>{
+  downloadCsv(`batting-template-${state.season}.csv`, battersArr());
+});
+document.getElementById("pitchersTemplate").addEventListener("click", ()=>{
+  downloadCsv(`pitching-template-${state.season}.csv`, pitchersArr());
+});
+
+function setStatus(el, msg, isError){
+  el.textContent = msg;
+  el.classList.toggle("error", !!isError);
+}
+
+function parseCsvFile(file, onRows, statusEl, label){
+  Papa.parse(file, {
+    header:true,
+    skipEmptyLines:true,
+    dynamicTyping:true,
+    complete: (results)=>{
+      if(results.errors && results.errors.length){
+        setStatus(statusEl, `Couldn't read that file: ${results.errors[0].message}`, true);
+        return;
+      }
+      if(!results.data.length){
+        setStatus(statusEl, "That CSV looks empty.", true);
+        return;
+      }
+      onRows(results.data);
+      setStatus(statusEl, `Loaded ${results.data.length} ${label} from ${file.name}`, false);
+    },
+    error: (err)=> setStatus(statusEl, "Couldn't read that file: "+err.message, true)
+  });
+}
+
+async function saveToStorage(key, value){
+  try{
+    if(window.storage) await window.storage.set(key, JSON.stringify(value));
+  }catch(e){ console.warn("storage save failed", e); }
+}
+
+// Imports always land in whichever season is currently selected.
+document.getElementById("teamsFile").addEventListener("change", e=>{
+  const file = e.target.files[0]; if(!file) return;
+  const statusEl = document.getElementById("teamsStatus");
+  parseCsvFile(file, rows=>{
+    const arr = teamsArr();
+    arr.length = 0;
+    rows.forEach(r=> arr.push({
+      id:r.id, name:r.name, color:r.color||"#8AA6C1",
+      wins:Number(r.wins)||0, losses:Number(r.losses)||0,
+      streak:r.streak||"-", last10:r.last10||"-",
+      runsFor:Number(r.runsFor)||0, runsAgainst:Number(r.runsAgainst)||0
+    }));
+    saveToStorage(`teams_${state.season}`, arr);
+    renderAll();
+  }, statusEl, `teams (${SEASONS[state.season].label})`);
+});
+
+document.getElementById("battersFile").addEventListener("change", e=>{
+  const file = e.target.files[0]; if(!file) return;
+  const statusEl = document.getElementById("battersStatus");
+  parseCsvFile(file, rows=>{
+    const arr = battersArr();
+    arr.length = 0;
+    rows.forEach(r=> arr.push({
+      name:r.name, team:r.team, pos:r.pos||"",
+      g:Number(r.g)||0, ab:Number(r.ab)||0, h:Number(r.h)||0,
+      hr:Number(r.hr)||0, rbi:Number(r.rbi)||0,
+      avg:Number(r.avg)||0, obp:Number(r.obp)||0, slg:Number(r.slg)||0, ops:Number(r.ops)||0,
+      r:Number(r.r)||0, tb:Number(r.tb)||0,
+      "2b":Number(r["2b"])||0, "3b":Number(r["3b"])||0,
+      bb:Number(r.bb)||0, so:Number(r.so)||0,
+      sb:Number(r.sb)||0, cs:Number(r.cs)||0,
+      hbp:Number(r.hbp)||0, sac:Number(r.sac)||0, sf:Number(r.sf)||0, e:Number(r.e)||0
+    }));
+    saveToStorage(`batters_${state.season}`, arr);
+    renderAll();
+  }, statusEl, `batters (${SEASONS[state.season].label})`);
+});
+
+document.getElementById("pitchersFile").addEventListener("change", e=>{
+  const file = e.target.files[0]; if(!file) return;
+  const statusEl = document.getElementById("pitchersStatus");
+  parseCsvFile(file, rows=>{
+    const arr = pitchersArr();
+    arr.length = 0;
+    rows.forEach(r=> arr.push({
+      name:r.name, team:r.team, pos:r.pos||r.role||"",
+      w:Number(r.w)||0, l:Number(r.l)||0, era:Number(r.era)||0,
+      r:Number(r.r)||0, er:Number(r.er)||0, whip:Number(r.whip)||0,
+      g:Number(r.g)||0, gs:Number(r.gs)||0, sv:Number(r.sv)||0,
+      ip:Number(r.ip)||0, h:Number(r.h)||0, avg:Number(r.avg)||0,
+      so:Number(r.so)||0, bb:Number(r.bb)||0, wp:Number(r.wp)||0,
+      hr:Number(r.hr)||0, cg:Number(r.cg)||0, sho:Number(r.sho)||0,
+      hb:Number(r.hb)||0, tbf:Number(r.tbf)||0, np:Number(r.np)||0
+    }));
+    saveToStorage(`pitchers_${state.season}`, arr);
+    renderAll();
+  }, statusEl, `pitchers (${SEASONS[state.season].label})`);
+});
+
+document.getElementById("adminTeamSave").addEventListener("click", saveAdminTeamEditor);
+
+document.getElementById("photoFile").addEventListener("change", async e=>{
+  const file = e.target.files[0]; if(!file) return;
+  const statusEl = document.getElementById("photoStatus");
+  const name = document.getElementById("photoPlayerSelect").value;
+  if(!name){ setStatus(statusEl, "Pick a player first.", true); return; }
+  try{
+    const dataUrl = await resizeImageFile(file, 400);
+    await savePlayerPhoto(name, dataUrl);
+    setStatus(statusEl, `Saved photo for ${name}.`, false);
+  }catch(err){
+    setStatus(statusEl, err.message || "Couldn't save that photo.", true);
+  }
+  e.target.value = "";
+});
+
+document.getElementById("resetData").addEventListener("click", async ()=>{
+  if(!confirm("Clear imported data for every season and go back to sample data?")) return;
+  try{
+    if(window.storage){
+      for(const id of SEASON_IDS){
+        await window.storage.delete(`teams_${id}`).catch(()=>{});
+        await window.storage.delete(`batters_${id}`).catch(()=>{});
+        await window.storage.delete(`pitchers_${id}`).catch(()=>{});
+      }
+    }
+  }catch(e){}
+  location.reload();
+});
+
+async function loadFromStorage(){
+  if(!window.storage) return;
+  for(const id of SEASON_IDS){
+    try{
+      const t = await window.storage.get(`teams_${id}`);
+      if(t && t.value){ const parsed = JSON.parse(t.value); SEASONS[id].teams.length=0; SEASONS[id].teams.push(...parsed); }
+    }catch(e){}
+    try{
+      const b = await window.storage.get(`batters_${id}`);
+      if(b && b.value){ const parsed = JSON.parse(b.value); SEASONS[id].batters.length=0; SEASONS[id].batters.push(...parsed); }
+    }catch(e){}
+    try{
+      const p = await window.storage.get(`pitchers_${id}`);
+      if(p && p.value){ const parsed = JSON.parse(p.value); SEASONS[id].pitchers.length=0; SEASONS[id].pitchers.push(...parsed); }
+    }catch(e){}
+  }
+}
+
+/* ---------- init ---------- */
+setAdminUiVisible(false);
+(async function init(){
+  await loadFromStorage();
+  renderAll();
+})();
+</script>
+</body>
+</html>
