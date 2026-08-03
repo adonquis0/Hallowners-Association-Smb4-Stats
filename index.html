@@ -905,10 +905,10 @@ const SEASONS = {
       { date:"2026-07-24", away:"CRW", home:"SPR", awayLine:[3,0,0,1,0,0,2,0,0], homeLine:[0,1,0,0,0,1,0,0,1], awayHits:12, homeHits:5, awayErr:0, homeErr:1 },
     ],
     awards: [
-      { name:"MVP",        winner:"T. Blade", team:"SPR", detail:".342 AVG, 9 HR, 28 RBI" },
-      { name:"Cy Young",   winner:"L. Rokesmith", team:"CRW", detail:"2.41 ERA, 58 SO" },
-      { name:"Rookie",     winner:"D. Nakamura", team:"FL7", detail:".276 AVG in first season" },
-      { name:"Comeback",   winner:"K. Boone", team:"BCP", detail:"8 HR after slow start" },
+      { name:"MVP",        winner:"TBD", team:"TBD", detail:"TBD" },
+      { name:"Cy Young",   winner:"TBD", team:"TBD", detail:"TBD" },
+      { name:"Rookie",     winner:"TBD", team:"TBD", detail:"TBD" },
+      { name:"Comeback",   winner:"TBD", team:"TBD", detail:"TBD" },
     ],
   },
 
@@ -924,8 +924,8 @@ const SEASONS = {
     pitchers: [],
     games: [],
     awards: [
-      { name:"MVP",        winner:"T. Blade", team:"SPR", detail:".680 AVG" },
-      { name:"Cy Young",   winner:"L. Rokesmith", team:"CRW", detail:"2.55 ERA, 0.96 WHIP" },
+      { name:"MVP",        winner:"Techno Blade", team:"SPR", detail:".680 AVG" },
+      { name:"Cy Young",   winner:"Lucius Rokesmith", team:"CRW", detail:"2.55 ERA, 0.96 WHIP" },
     ],
   },
 
@@ -1063,10 +1063,8 @@ function renderLeaders(){
     top(qb,"hr","HR"),
     top(qb,"rbi","RBI"),
     top(qb,"ops","OPS", v=>v.toFixed(3)),
-    top(qb,"sb","STOLEN BASES"),
     top(qp,"so","STRIKEOUTS"),
     top(qp,"era","ERA", v=>v.toFixed(2), true),
-    top(qp,"whip","WHIP", v=>v.toFixed(2), true),
   ];
   document.getElementById("leaderGrid").innerHTML = cards.map(c=>`
     <div class="leader-card">
@@ -1268,11 +1266,24 @@ function initials(name){
   return (first+last).toUpperCase();
 }
 
+function nameMatches(fullName, awardWinner){
+  const norm = s=> String(s).trim().toLowerCase();
+  if(norm(fullName) === norm(awardWinner)) return true;
+  // Tolerate shorthand winner names like "L. Rokesmith" matching a roster
+  // entry of "Lucius Rokesmith" (same last name + first initial).
+  const m = String(awardWinner).trim().match(/^([A-Za-z])\.\s*(.+)$/);
+  if(!m) return false;
+  const initial = m[1].toLowerCase();
+  const last = norm(m[2]);
+  const parts = norm(fullName).split(/\s+/);
+  return parts.length>1 && parts[parts.length-1]===last && parts[0][0]===initial;
+}
+
 function getPlayerAwards(name){
   const won = [];
   [...SEASON_IDS].reverse().forEach(id=>{ // oldest -> newest
     const season = SEASONS[id];
-    (season.awards||[]).filter(a=>a.winner===name).forEach(a=> won.push({...a, seasonLabel:season.label}));
+    (season.awards||[]).filter(a=>nameMatches(name, a.winner)).forEach(a=> won.push({...a, seasonLabel:season.label}));
   });
   return won;
 }
@@ -1306,6 +1317,7 @@ function careerPitchingTotals(rows){
   t.ip = outsToIp(outs);
   t.era = outs ? (t.er*9)/(outs/3) : 0;
   t.whip = outs ? (t.bb+t.h)/(outs/3) : 0;
+  t.avg = rows.length ? rows.reduce((s,r)=> s+(r.avg||0), 0)/rows.length : 0;
   return t;
 }
 
