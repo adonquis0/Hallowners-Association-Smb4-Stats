@@ -229,31 +229,58 @@
     overflow-x:auto;
   }
 
-  /* ---------- sticky player-name column (players + attributes tables) ---------- */
+  /* ---------- sticky player-name column (players table) ---------- */
   #playersTable th:first-child,
-  #playersTable td:first-child,
-  #attributesTable th:first-child,
-  #attributesTable td:first-child{
+  #playersTable td:first-child{
     position:sticky;
     left:0;
     z-index:1;
   }
-  #playersTable thead th:first-child,
-  #attributesTable thead th:first-child{
+  #playersTable thead th:first-child{
     z-index:3;
     background:var(--cream);
   }
-  #playersTable thead th:first-child.sorted,
-  #attributesTable thead th:first-child.sorted{background:var(--gold);}
-  #playersTable tbody td:first-child,
-  #attributesTable tbody td:first-child{
+  #playersTable thead th:first-child.sorted{background:var(--gold);}
+  #playersTable tbody td:first-child{
     background:var(--navy-800);
     box-shadow:1px 0 0 var(--hairline);
   }
-  #playersTable tbody tr:nth-child(even) td:first-child,
-  #attributesTable tbody tr:nth-child(even) td:first-child{background:#152A4A;}
-  #playersTable tbody tr:hover td:first-child,
-  #attributesTable tbody tr:hover td:first-child{background:var(--navy-700);}
+  #playersTable tbody tr:nth-child(even) td:first-child{background:#152A4A;}
+  #playersTable tbody tr:hover td:first-child{background:var(--navy-700);}
+
+  /* ---------- sticky name+team columns (attributes table) ----------
+     Team's `left` comes from --attr-col1-w, a custom property set from JS
+     to the Name column's actual rendered width (names vary in length, so a
+     fixed px offset would leave a gap or overlap). */
+  #attributesTable th:first-child,
+  #attributesTable td:first-child,
+  #attributesTable th:nth-child(2),
+  #attributesTable td:nth-child(2){
+    position:sticky;
+    z-index:1;
+  }
+  #attributesTable th:first-child,
+  #attributesTable td:first-child{ left:0; }
+  #attributesTable th:nth-child(2),
+  #attributesTable td:nth-child(2){ left:var(--attr-col1-w, 110px); }
+  #attributesTable thead th:first-child,
+  #attributesTable thead th:nth-child(2){
+    z-index:3;
+    background:var(--cream);
+  }
+  #attributesTable thead th:first-child.sorted,
+  #attributesTable thead th:nth-child(2).sorted{background:var(--gold);}
+  #attributesTable tbody td:first-child,
+  #attributesTable tbody td:nth-child(2){
+    background:var(--navy-800);
+  }
+  #attributesTable tbody td:nth-child(2){
+    box-shadow:1px 0 0 var(--hairline);
+  }
+  #attributesTable tbody tr:nth-child(even) td:first-child,
+  #attributesTable tbody tr:nth-child(even) td:nth-child(2){background:#152A4A;}
+  #attributesTable tbody tr:hover td:first-child,
+  #attributesTable tbody tr:hover td:nth-child(2){background:var(--navy-700);}
   .ovr-badge{
     display:inline-block;
     font-family:'IBM Plex Mono',monospace;
@@ -1304,6 +1331,21 @@ const PITCHING_COLS = [
   {key:"hb",label:"HB"},{key:"tbf",label:"TBF"},{key:"np",label:"NP"},
 ];
 
+// Full per-season stat lines shown on a player's profile page reuse the same
+// column definitions as the Players tab, just without the Player/Team cells
+// (those are rendered separately alongside the Season label there).
+const PROFILE_BATTING_COLS = BATTING_COLS.filter(c=>c.key!=="name");
+const PROFILE_PITCHING_COLS = PITCHING_COLS.filter(c=>c.key!=="name");
+
+function profileStatCell(row, col, isCareerRow){
+  if(col.key==="team") return isCareerRow ? `<td>&mdash;</td>` : `<td>${teamTag(row.team)} ${row.team||""}</td>`;
+  if(col.key==="pos") return isCareerRow ? `<td>&mdash;</td>` : `<td>${row.pos||""}</td>`;
+  let v = row[col.key];
+  if(v===undefined || v===null) v = 0;
+  if(col.fmt) v = col.fmt(v);
+  return `<td>${v}</td>`;
+}
+
 let currentStatView = "batting";
 let showCareerStats = false;
 let playersSort = {key:null, dir:1};
@@ -1463,9 +1505,14 @@ function attributesGroups(){
 // Each page defines the columns shown for that view. "Pitching" is only
 // ever shown while viewing the Pitchers table (see visibleAttrPages) since
 // those fields are blank for pure position players.
+// "team" is included as the 2nd column on every page (right after name) so
+// it can stay pinned alongside the name column — see the sticky CSS for
+// #attributesTable, which pins the first *two* columns for this table.
+const ATTR_TEAM_COL = {key:"team", label:"Team", render:p=> `${teamTag(p.team)} ${p.team||""}`};
 const ATTR_PAGES = [
   { title:"Bio", cols:[
     {key:"name", label:"Name"},
+    ATTR_TEAM_COL,
     {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
     {key:"pos", label:"P. Pos"},
     {key:"pos2", label:"S. Pos", cellClass:"pos2-cell",
@@ -1477,6 +1524,7 @@ const ATTR_PAGES = [
   ]},
   { title:"Ratings", cols:[
     {key:"name", label:"Name"},
+    ATTR_TEAM_COL,
     {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
     {key:"pow", label:"POW", render:p=>ratingCell(p.pow)},
     {key:"con", label:"CON", render:p=>ratingCell(p.con)},
@@ -1486,6 +1534,7 @@ const ATTR_PAGES = [
   ]},
   { title:"Pitching", cols:[
     {key:"name", label:"Name"},
+    ATTR_TEAM_COL,
     {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
     {key:"vel", label:"VEL", render:p=>ratingCell(p.vel)},
     {key:"jnk", label:"JNK", render:p=>ratingCell(p.jnk)},
@@ -1494,6 +1543,7 @@ const ATTR_PAGES = [
   ]},
   { title:"Chemistry", cols:[
     {key:"name", label:"Name"},
+    ATTR_TEAM_COL,
     {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
     {key:"chem", label:"Chem", render:p=>chemBadge(p.chem)},
     {key:"trait1", label:"Trait 1", render:p=>traitPill(p.trait1, p.trait1Tier)},
@@ -1616,6 +1666,20 @@ function syncAttributesScrollTopWidth(){
   const table = document.getElementById("attributesTable");
   const inner = document.getElementById("attributesScrollTopInner");
   if(table && inner) inner.style.width = table.scrollWidth + "px";
+  syncAttributesStickyOffset();
+}
+
+// Keeps the sticky Team column flush against the sticky Name column. Name
+// column width varies with content (and the table is display:none while its
+// tab isn't active, where measurements read as 0), so this re-measures
+// wherever the table might have just become visible or repopulated.
+function syncAttributesStickyOffset(){
+  const table = document.getElementById("attributesTable");
+  if(!table) return;
+  const firstCell = table.querySelector("tbody td:first-child") || table.querySelector("thead th:first-child");
+  if(!firstCell) return;
+  const width = firstCell.getBoundingClientRect().width;
+  if(width > 0) table.style.setProperty("--attr-col1-w", width + "px");
 }
 
 (function initAttributesScrollSync(){
@@ -1935,20 +1999,16 @@ function openPlayerPage(name){
   if(battingRows.length){
     const career = careerBattingTotals(battingRows);
     html += `<h3 class="sub-title">Batting</h3>
-    <div style="overflow-x:auto;">
+    <div class="table-scroll-x">
     <table>
-      <thead><tr><th>Season</th><th>Tm</th><th>G</th><th>AB</th><th>H</th><th>HR</th><th>RBI</th><th>AVG</th><th>OBP</th><th>SLG</th><th>OPS</th></tr></thead>
+      <thead><tr><th>Season</th>${PROFILE_BATTING_COLS.map(c=>`<th>${c.label}</th>`).join("")}</tr></thead>
       <tbody>
         ${battingRows.map(r=>`
           <tr>
-            <td>${r.label}</td><td>${teamTag(r.team)} ${r.team}</td>
-            <td>${r.g}</td><td>${r.ab}</td><td>${r.h}</td><td>${r.hr}</td><td>${r.rbi}</td>
-            <td>${fmtAvg(r.avg)}</td><td>${fmtAvg(r.obp)}</td><td>${fmtAvg(r.slg)}</td><td>${r.ops.toFixed(3)}</td>
+            <td>${r.label}</td>${PROFILE_BATTING_COLS.map(c=>profileStatCell(r,c,false)).join("")}
           </tr>`).join("")}
         <tr class="career-row">
-          <td>Career</td><td>—</td>
-          <td>${career.g}</td><td>${career.ab}</td><td>${career.h}</td><td>${career.hr}</td><td>${career.rbi}</td>
-          <td>${fmtAvg(career.avg)}</td><td>${fmtAvg(career.obp)}</td><td>${fmtAvg(career.slg)}</td><td>${career.ops.toFixed(3)}</td>
+          <td>Career</td>${PROFILE_BATTING_COLS.map(c=>profileStatCell(career,c,true)).join("")}
         </tr>
       </tbody>
     </table>
@@ -1958,22 +2018,16 @@ function openPlayerPage(name){
   if(pitchingRows.length){
     const career = careerPitchingTotals(pitchingRows);
     html += `<h3 class="sub-title">Pitching</h3>
-    <div style="overflow-x:auto;">
+    <div class="table-scroll-x">
     <table>
-      <thead><tr><th>Season</th><th>Tm</th><th>W</th><th>L</th><th>ERA</th><th>G</th><th>GS</th><th>SV</th><th>IP</th><th>H</th><th>SO</th><th>BB</th><th>WHIP</th></tr></thead>
+      <thead><tr><th>Season</th>${PROFILE_PITCHING_COLS.map(c=>`<th>${c.label}</th>`).join("")}</tr></thead>
       <tbody>
         ${pitchingRows.map(r=>`
           <tr>
-            <td>${r.label}</td><td>${teamTag(r.team)} ${r.team}</td>
-            <td>${r.w}</td><td>${r.l}</td><td>${r.era.toFixed(2)}</td>
-            <td>${r.g}</td><td>${r.gs}</td><td>${r.sv}</td><td>${r.ip.toFixed(1)}</td>
-            <td>${r.h}</td><td>${r.so}</td><td>${r.bb}</td><td>${r.whip.toFixed(2)}</td>
+            <td>${r.label}</td>${PROFILE_PITCHING_COLS.map(c=>profileStatCell(r,c,false)).join("")}
           </tr>`).join("")}
         <tr class="career-row">
-          <td>Career</td><td>—</td>
-          <td>${career.w}</td><td>${career.l}</td><td>${career.era.toFixed(2)}</td>
-          <td>${career.g}</td><td>${career.gs}</td><td>${career.sv}</td><td>${career.ip.toFixed(1)}</td>
-          <td>${career.h}</td><td>${career.so}</td><td>${career.bb}</td><td>${career.whip.toFixed(2)}</td>
+          <td>Career</td>${PROFILE_PITCHING_COLS.map(c=>profileStatCell(career,c,true)).join("")}
         </tr>
       </tbody>
     </table>
@@ -2055,7 +2109,7 @@ document.getElementById("tabs").addEventListener("click", e=>{
   // their panel is display:none, so re-measure now that the panel is visible.
   requestAnimationFrame(()=>{
     if(btn.dataset.tab==="players") syncPlayersScrollTopWidth();
-    if(btn.dataset.tab==="attributes") syncAttributesScrollTopWidth();
+    if(btn.dataset.tab==="attributes"){ syncAttributesScrollTopWidth(); syncAttributesStickyOffset(); }
   });
 });
 
@@ -2185,13 +2239,20 @@ async function loadSheetUrls(){
 }
 
 let sheetUrlsLoadedFor = null;
+let sheetUrlsRequestSeason = null;
 async function renderSheetUrlInputs(){
   const teamsEl = document.getElementById("sheetTeamsUrl");
   if(!teamsEl) return;
+  const requestedSeason = state.season;
+  sheetUrlsRequestSeason = requestedSeason;
   const labelEl = document.getElementById("sheetSyncSeasonLabel");
   if(labelEl) labelEl.textContent = SEASONS[state.season].label;
   const seasonChanged = sheetUrlsLoadedFor !== state.season;
   const urls = await loadSheetUrls();
+  // If the season changed again while that storage read was in flight, a
+  // newer call to this function already owns the fields — don't stomp on it
+  // with stale data for a season the admin has since navigated away from.
+  if(sheetUrlsRequestSeason !== requestedSeason || state.season !== requestedSeason) return;
   const battersEl = document.getElementById("sheetBattersUrl");
   const pitchersEl = document.getElementById("sheetPitchersUrl");
   const attributesEl = document.getElementById("sheetAttributesUrl");
@@ -2202,6 +2263,13 @@ async function renderSheetUrlInputs(){
   if(battersEl && (seasonChanged || !battersEl.value)) battersEl.value = urls.batters || "";
   if(pitchersEl && (seasonChanged || !pitchersEl.value)) pitchersEl.value = urls.pitchers || "";
   if(attributesEl && (seasonChanged || !attributesEl.value)) attributesEl.value = urls.attributes || "";
+  if(seasonChanged){
+    // A leftover "Sync failed" / "Synced 12 teams" message from the
+    // previous season is misleading once the fields underneath it have
+    // switched to a different season's links.
+    const statusEl = document.getElementById("sheetSyncStatus");
+    if(statusEl){ statusEl.textContent = ""; statusEl.classList.remove("error"); }
+  }
   sheetUrlsLoadedFor = state.season;
 }
 
@@ -2213,7 +2281,18 @@ function fetchSheetCsv(url){
       dynamicTyping:true,
       skipEmptyLines:true,
       complete: results=>{
-        if(results.errors && results.errors.length) return reject(new Error(results.errors[0].message));
+        // Google Sheets exports frequently trip Papa Parse's row-level
+        // warnings (e.g. "TooFewFields"/"TooManyFields" from a stray comma
+        // in a cell, or a ragged trailing row) even though the data itself
+        // parsed fine. Those aren't fatal — only bail out if we truly got
+        // no usable rows back. A genuine fetch/network failure lands in the
+        // error callback below instead.
+        if((!results.data || !results.data.length) && results.errors && results.errors.length){
+          return reject(new Error(results.errors[0].message));
+        }
+        if(results.errors && results.errors.length){
+          console.warn(`Sheet CSV parsed with ${results.errors.length} row warning(s):`, results.errors[0].message);
+        }
         resolve(results.data);
       },
       error: err=> reject(err)
