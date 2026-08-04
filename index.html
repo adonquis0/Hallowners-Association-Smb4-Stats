@@ -1236,6 +1236,15 @@ function teamTag(id){
   return `<span class="team-tag" style="background:${t.color}">${t.id}</span>`;
 }
 
+// Looks up a team's display name, tolerating an id that doesn't match any
+// team in the current season (e.g. games/awards data pointing at a team id
+// that isn't in the currently-synced Teams sheet) instead of throwing.
+function teamName(id){
+  const byId = teamById();
+  const t = byId[id] || byId[normTeamKey(id)];
+  return t ? t.name : (id || "Unknown Team");
+}
+
 function renderSeasonSelect(){
   const sel = document.getElementById("seasonSelect");
   sel.innerHTML = SEASON_IDS.map(id=>`<option value="${id}" ${id===state.season?"selected":""}>${SEASONS[id].label}</option>`).join("");
@@ -1717,8 +1726,8 @@ function renderGames(){
         <span>Box Score &darr;</span>
       </div>
       <div class="game-row-score">
-        <span class="${awayWin?'win':'lose'}">${teamById()[g.away].name} ${awayTotal}</span>
-        <span class="${!awayWin?'win':'lose'}">${teamById()[g.home].name} ${homeTotal}</span>
+        <span class="${awayWin?'win':'lose'}">${teamName(g.away)} ${awayTotal}</span>
+        <span class="${!awayWin?'win':'lose'}">${teamName(g.home)} ${homeTotal}</span>
       </div>
       <div class="linescore-wrap" id="line-${i}">
         ${linescoreTable(g)}
@@ -1746,8 +1755,8 @@ function linescoreTable(g){
   return `<table class="linescore">
     <thead><tr><th></th>${innHeads}<th>R</th><th>H</th><th>E</th></tr></thead>
     <tbody>
-      ${rowOf(teamById()[g.away].name, g.awayLine, g.awayHits, g.awayErr)}
-      ${rowOf(teamById()[g.home].name, g.homeLine, g.homeHits, g.homeErr)}
+      ${rowOf(teamName(g.away), g.awayLine, g.awayHits, g.awayErr)}
+      ${rowOf(teamName(g.home), g.homeLine, g.homeHits, g.homeErr)}
     </tbody>
   </table>`;
 }
@@ -1766,7 +1775,7 @@ function renderHistory(){
     <div class="award-card">
       <div class="award-name">${a.name}</div>
       <div class="award-winner">${a.winner}</div>
-      <div class="award-detail">${teamById()[a.team].name}${a.detail ? " &middot; "+a.detail : ""}</div>
+      <div class="award-detail">${teamName(a.team)}${a.detail ? " &middot; "+a.detail : ""}</div>
     </div>
   `).join("");
 }
@@ -1940,7 +1949,7 @@ function openPlayerPage(name){
 
   document.getElementById("playerName").textContent = name;
   document.getElementById("playerMeta").innerHTML =
-    `${teamTag(latest.team)} ${teamById()[latest.team]?teamById()[latest.team].name:latest.team} &middot; ${latest.pos||""} &middot; ${battingRows.length+pitchingRows.length>0?(new Set([...battingRows,...pitchingRows].map(r=>r.seasonId))).size:0} season(s) on record`;
+    `${teamTag(latest.team)} ${teamName(latest.team)} &middot; ${latest.pos||""} &middot; ${battingRows.length+pitchingRows.length>0?(new Set([...battingRows,...pitchingRows].map(r=>r.seasonId))).size:0} season(s) on record`;
 
   overlayPlayerName = name;
   const avatarTeam = teamById()[latest.team];
