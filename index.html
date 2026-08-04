@@ -645,6 +645,66 @@
   .award-card .award-winner{font-family:'Anton',sans-serif; font-size:19px; color:var(--cream); margin-top:4px;}
   .award-card .award-detail{font-size:12px; color:var(--cream-dim); margin-top:2px;}
 
+  .filter-select{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    background:var(--navy-950);
+    border:1px solid var(--hairline);
+    color:var(--cream-dim);
+    padding:7px 10px;
+    cursor:pointer;
+    margin-left:auto;
+  }
+  .filter-select:hover{border-color:var(--gold); color:var(--cream);}
+  .filter-select:focus{outline:none; border-color:var(--gold);}
+
+  /* ---------- attribute snapshot card on a player's profile ---------- */
+  .profile-attr-note{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.5px;
+    text-transform:none;
+    color:var(--cream-dim);
+    font-weight:400;
+  }
+  .profile-attr-grid{
+    display:flex;
+    flex-wrap:wrap;
+    gap:18px;
+    margin-bottom:20px;
+  }
+  .profile-attr-block{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    min-width:44px;
+  }
+  .profile-attr-block .profile-attr-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    color:var(--cream-dim);
+  }
+  .profile-attr-block .profile-attr-value{
+    font-size:14px;
+    color:var(--cream);
+  }
+  .profile-attr-divider{
+    width:1px;
+    align-self:stretch;
+    background:var(--hairline);
+    margin:0 2px;
+  }
+  .profile-attr-traits{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    align-items:center;
+  }
+
   .toggle-row{display:flex; gap:8px; margin-bottom:16px;}
   .toggle-btn{
     font-family:'IBM Plex Mono',monospace;
@@ -807,9 +867,10 @@
     <div class="leader-grid" id="leaderGrid"></div>
 
     <h3 class="sub-title">Full Stats</h3>
-    <div class="toggle-row" id="statToggleRow">
+    <div class="toggle-row" id="statToggleRow" style="flex-wrap:wrap; align-items:center;">
       <button class="toggle-btn active" data-stat-view="batting">Batting</button>
       <button class="toggle-btn" data-stat-view="pitching">Pitching</button>
+      <select class="filter-select" id="playersTeamFilter"><option value="all">All Teams</option></select>
     </div>
     <label class="career-toggle" style="display:flex; align-items:center; gap:8px; margin-bottom:14px; font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--cream-dim); cursor:pointer;">
       <input type="checkbox" id="careerStatsCheckbox">
@@ -827,9 +888,10 @@
   <section class="panel" id="panel-attributes">
     <h2 class="section-title">Player Attributes</h2>
     <p style="color:var(--cream-dim); font-size:13px; margin-top:-8px;">In-game ratings, chemistry, and traits for the current roster.</p>
-    <div class="toggle-row" id="attrToggleRow">
+    <div class="toggle-row" id="attrToggleRow" style="flex-wrap:wrap; align-items:center;">
       <button class="toggle-btn active" data-attr-view="hitters">Hitters</button>
       <button class="toggle-btn" data-attr-view="pitchers">Pitchers</button>
+      <select class="filter-select" id="attrTeamFilter"><option value="all">All Teams</option></select>
     </div>
     <div class="attr-pager">
       <button class="attr-pager-arrow" id="attrPagePrev" aria-label="Previous page">&#9664;</button>
@@ -1149,9 +1211,9 @@ const SEASONS = {
     games: [],
     awards: [
       { name:"MVP",        winner:"Techno Blade", team:"SPR", detail:".680 AVG",
-        nominees:[ { name:"Techno Blade", team:"SPR", detail:".680 AVG" }, { name:"Coolude 951", team:"CRW", detail:".410 AVG" }, { name:"3 Batters Away", team:"CRW", detail:".377 AVG" } ] },
+        nominees:[ { name:"Techno Blade", team:"SPR", detail:".680 AVG" }, { name:"Wither King", team:"SPR", detail:".700 AVG, 9 ERA" } ] },
       { name:"Cy Young",   winner:"Lucius Rokesmith", team:"CRW", detail:"2.55 ERA, 0.96 WHIP",
-        nominees:[ { name:"Lucius Rokesmith", team:"CRW", detail:"2.55 ERA, 0.96 WHIP" }, { name:"Quandale Dingle", team:"CRW", detail:"3.10 ERA" } ] },
+        nominees:[ { name:"Lucius Rokesmith", team:"CRW", detail:"2.55 ERA, 0.96 WHIP" }, { name:"Master Tactition Funk", team:"FL7", detail:"3.42 ERA, 19K" } ] },
     ],
   },
 
@@ -1358,8 +1420,23 @@ function profileStatCell(row, col, isCareerRow){
 let currentStatView = "batting";
 let showCareerStats = false;
 let playersSort = {key:null, dir:1};
+let playersTeamFilter = "all";
 
 function escapeAttr(s){ return String(s).replace(/"/g,"&quot;"); }
+
+// Repopulates the team-filter dropdown for whichever season is selected.
+// If the previously-chosen team isn't on the roster this season, falls back
+// to "All Teams" instead of silently filtering to an empty table.
+function renderPlayersTeamFilter(){
+  const sel = document.getElementById("playersTeamFilter");
+  if(!sel) return;
+  const teams = teamsArr();
+  sel.innerHTML = `<option value="all">All Teams</option>` +
+    teams.map(t=>`<option value="${escapeAttr(t.id)}">${t.name}</option>`).join("");
+  const stillValid = playersTeamFilter==="all" || teams.some(t=>normTeamKey(t.id)===normTeamKey(playersTeamFilter));
+  if(!stillValid) playersTeamFilter = "all";
+  sel.value = playersTeamFilter;
+}
 
 function renderPlayersHead(){
   const cols = currentStatView==="batting" ? BATTING_COLS : PITCHING_COLS;
@@ -1373,6 +1450,9 @@ function renderPlayersBody(){
   let data = showCareerStats
     ? [...(currentStatView==="batting"?careerBattersArr():careerPitchersArr())]
     : [...(currentStatView==="batting"?battersArr():pitchersArr())];
+  if(playersTeamFilter!=="all"){
+    data = data.filter(p=> normTeamKey(p.team)===normTeamKey(playersTeamFilter));
+  }
   if(playersSort.key){
     data.sort((a,b)=>{
       const av=a[playersSort.key], bv=b[playersSort.key];
@@ -1382,8 +1462,9 @@ function renderPlayersBody(){
   }
   const tbody = document.querySelector("#playersTable tbody");
   if(!data.length){
+    const teamNote = playersTeamFilter!=="all" ? ` for ${teamName(playersTeamFilter)}` : "";
     const scopeNote = showCareerStats ? "on file yet" : "on file for this season yet — import a CSV on the Import Data tab";
-    tbody.innerHTML = `<tr><td colspan="${cols.length}" class="no-data-note">No ${currentStatView} stats ${scopeNote}.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${cols.length}" class="no-data-note">No ${currentStatView} stats${teamNote} ${scopeNote}.</td></tr>`;
     return;
   }
   tbody.innerHTML = data.map(p=>`
@@ -1563,6 +1644,21 @@ const ATTR_PAGES = [
 let currentAttrView = "hitters";
 let attrPageTitle = "Bio";
 let attrSort = {key:null, dir:1};
+let attrTeamFilter = "all";
+
+// Same pattern as renderPlayersTeamFilter(): repopulate per-season, falling
+// back to "All Teams" if the previously-selected team isn't rostered this
+// season.
+function renderAttributesTeamFilter(){
+  const sel = document.getElementById("attrTeamFilter");
+  if(!sel) return;
+  const teams = teamsArr();
+  sel.innerHTML = `<option value="all">All Teams</option>` +
+    teams.map(t=>`<option value="${escapeAttr(t.id)}">${t.name}</option>`).join("");
+  const stillValid = attrTeamFilter==="all" || teams.some(t=>normTeamKey(t.id)===normTeamKey(attrTeamFilter));
+  if(!stillValid) attrTeamFilter = "all";
+  sel.value = attrTeamFilter;
+}
 
 function visibleAttrPages(){
   return currentAttrView==="pitchers" ? ATTR_PAGES : ATTR_PAGES.filter(p=>p.title!=="Pitching");
@@ -1616,6 +1712,9 @@ function sortAttrData(data, col, dir){
 function renderAttributesBody(){
   const { hitters, pitchers } = attributesGroups();
   let data = currentAttrView==="pitchers" ? pitchers : hitters;
+  if(attrTeamFilter!=="all"){
+    data = data.filter(p=> normTeamKey(p.team)===normTeamKey(attrTeamFilter));
+  }
   const cols = activeAttrPage().cols;
   if(attrSort.key){
     const col = cols.find(c=>c.key===attrSort.key);
@@ -1623,7 +1722,8 @@ function renderAttributesBody(){
   }
   const tbody = document.getElementById("attributesBody");
   if(!data.length){
-    tbody.innerHTML = `<tr><td colspan="${cols.length}" class="no-data-note">No ${currentAttrView} attribute data on file for this season yet.</td></tr>`;
+    const teamNote = attrTeamFilter!=="all" ? ` for ${teamName(attrTeamFilter)}` : "";
+    tbody.innerHTML = `<tr><td colspan="${cols.length}" class="no-data-note">No ${currentAttrView} attribute data${teamNote} on file for this season yet.</td></tr>`;
     syncAttributesScrollTopWidth();
     return;
   }
@@ -1668,6 +1768,11 @@ document.getElementById("attributesHeadRow").addEventListener("click", e=>{
   attrSort.dir = (attrSort.key===key) ? -attrSort.dir : -1;
   attrSort.key = key;
   renderAttributesHead();
+  renderAttributesBody();
+});
+
+document.getElementById("attrTeamFilter").addEventListener("change", e=>{
+  attrTeamFilter = e.target.value;
   renderAttributesBody();
 });
 
@@ -1869,6 +1974,20 @@ function getPlayerCareer(name){
   return {battingRows, pitchingRows};
 }
 
+// Ratings/chemistry/traits are a snapshot, not something that accumulates
+// across seasons the way batting/pitching stats do — so the profile shows
+// whichever season's attribute sheet has the player, starting from the most
+// recent (SEASON_IDS is newest-first) and falling back to older seasons for
+// a player who's missing from the current one.
+function getPlayerLatestAttributes(name){
+  for(const id of SEASON_IDS){
+    const season = SEASONS[id];
+    const row = (season.attributes||[]).find(a=>a.name===name);
+    if(row) return {seasonId:id, label:season.label, ...row};
+  }
+  return null;
+}
+
 function careerBattingTotals(rows){
   const t = {g:0,ab:0,h:0,hr:0,rbi:0,r:0,tb:0,"2b":0,"3b":0,bb:0,so:0,sb:0,cs:0,hbp:0,sac:0,sf:0,e:0};
   rows.forEach(r=>{ Object.keys(t).forEach(k=> t[k]+= (r[k]||0)); });
@@ -1936,6 +2055,40 @@ async function loadPlayerPhoto(name){
   }
 }
 
+// Renders the same visual language as the Attributes tab (rating bars, OVR
+// badge, chem badge, trait pills) as a compact snapshot on a player's
+// profile, rather than duplicating the whole sortable table there.
+function playerAttributesCardHtml(attrs){
+  if(!attrs) return "";
+  const block = (label, value)=>
+    `<div class="profile-attr-block"><div class="profile-attr-label">${label}</div><div class="profile-attr-value">${value}</div></div>`;
+
+  const bioBlocks = [ block("OVR", ovrBadge(attrs.ovr)), block("Pos", attrs.pos||"&ndash;") ];
+  if(attrs.pos2 && attrs.pos2!=="--") bioBlocks.push(block("2nd Pos", attrs.pos2));
+  bioBlocks.push(block("Age", attrs.age||"&ndash;"));
+  if(attrs.bat) bioBlocks.push(block("Bat", attrs.bat));
+  if(attrs.thr) bioBlocks.push(block("Thr", attrs.thr));
+
+  const hasVal = k=> attrs[k]!==null && attrs[k]!==undefined;
+  const hittingRatings = [["pow","POW"],["con","CON"],["spd","SPD"],["fld","FLD"],["arm","ARM"]]
+    .filter(([k])=>hasVal(k)).map(([k,label])=>block(label, ratingCell(attrs[k])));
+  const pitchingRatings = [["vel","VEL"],["jnk","JNK"],["acc","ACC"]]
+    .filter(([k])=>hasVal(k)).map(([k,label])=>block(label, ratingCell(attrs[k])));
+  if(attrs.arsenal && attrs.arsenal.length) pitchingRatings.push(block("Arsenal", arsenalCell(attrs.arsenal)));
+
+  const chemRow = [];
+  if(attrs.chem) chemRow.push(block("Chem", chemBadge(attrs.chem)));
+  const traits = [attrs.trait1?traitPill(attrs.trait1,attrs.trait1Tier):"", attrs.trait2?traitPill(attrs.trait2,attrs.trait2Tier):""].filter(Boolean);
+  if(traits.length) chemRow.push(`<div class="profile-attr-block"><div class="profile-attr-label">Traits</div><div class="profile-attr-traits">${traits.join("")}</div></div>`);
+
+  let html = `<h3 class="sub-title">Attributes <span class="profile-attr-note">(${attrs.label} ratings)</span></h3>`;
+  html += `<div class="profile-attr-grid">${bioBlocks.join("")}</div>`;
+  if(hittingRatings.length) html += `<div class="profile-attr-grid">${hittingRatings.join("")}</div>`;
+  if(pitchingRatings.length) html += `<div class="profile-attr-grid">${pitchingRatings.join("")}</div>`;
+  if(chemRow.length) html += `<div class="profile-attr-grid">${chemRow.join("")}</div>`;
+  return html;
+}
+
 function setAvatarPhoto(dataUrl){
   document.getElementById("playerAvatar").innerHTML = `<img src="${dataUrl}" alt="">`;
 }
@@ -1962,6 +2115,8 @@ function openPlayerPage(name){
   document.getElementById("overlayPhotoEditWrap").style.display = isAdmin ? "block" : "none";
 
   let html = "";
+
+  html += playerAttributesCardHtml(getPlayerLatestAttributes(name));
 
   const championships = getPlayerChampionships(name);
   if(championships.length){
@@ -2161,6 +2316,11 @@ document.getElementById("careerStatsCheckbox").addEventListener("change", e=>{
   renderPlayersBody();
 });
 
+document.getElementById("playersTeamFilter").addEventListener("change", e=>{
+  playersTeamFilter = e.target.value;
+  renderPlayersBody();
+});
+
 document.getElementById("playersHeadRow").addEventListener("click", e=>{
   const th = e.target.closest("th");
   if(!th) return;
@@ -2180,8 +2340,10 @@ function renderAll(){
   renderScoreboard();
   renderStandings();
   renderLeaders();
+  renderPlayersTeamFilter();
   renderPlayersHead();
   renderPlayersBody();
+  renderAttributesTeamFilter();
   renderAttributesPager();
   renderAttributesHead();
   renderAttributesBody();
