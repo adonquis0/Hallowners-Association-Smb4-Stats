@@ -484,6 +484,7 @@
   }
   .team-tag{
     display:inline-block;
+    vertical-align:middle;
     font-family:'IBM Plex Mono',monospace;
     font-size:10.5px;
     padding:2px 6px;
@@ -1464,6 +1465,19 @@ function recordsArr(){
   return s.records;
 }
 
+// League Records are an all-time leaderboard, not scoped to a single
+// season the way stats are — so the Records tab pools entries from every
+// season regardless of which season is currently selected elsewhere on
+// the page.
+function allRecordsArr(){
+  const out = [];
+  SEASON_IDS.forEach(id=>{
+    const recs = SEASONS[id].records || [];
+    out.push(...recs);
+  });
+  return out;
+}
+
 // Career (all-seasons) rollups for the Full Stats table's career checkbox.
 // Relies on getPlayerCareer()/careerBattingTotals()/careerPitchingTotals(),
 // defined further down — safe since these are only ever called at render time.
@@ -1870,21 +1884,17 @@ function arsenalCell(list){
 const PITCHER_POS_RE = /SP|RP|CP/;
 
 // Two-way players (rostered as both a batter and a pitcher this season) show
-// up on both the Hitters and Pitchers tables — membership is driven by
-// whichever stat arrays actually have an entry for that player, not just
-// their attributes "pos" field, so it stays accurate for anyone splitting
-// time between roles.
+// up on both the Hitters and Pitchers tables — membership is driven by the
+// player's attributes "pos" field (their actual roster position), not by
+// whether they happen to have an entry in this season's pitching stats, so
+// someone who hasn't pitched (or hasn't pitched yet) still shows up on the
+// right table.
 function attributesGroups(){
   const rows = attributesArr();
-  const batterNames = new Set(battersArr().map(b=>b.name));
-  const pitcherNames = new Set(pitchersArr().map(p=>p.name));
   const hitters = [], pitchers = [];
   rows.forEach(p=>{
-    const inBatters = batterNames.has(p.name);
-    const inPitchers = pitcherNames.has(p.name);
-    const fallbackPitcher = !inBatters && !inPitchers && PITCHER_POS_RE.test(p.pos||"");
-    if(inBatters || (!inBatters && !inPitchers && !fallbackPitcher)) hitters.push(p);
-    if(inPitchers || fallbackPitcher) pitchers.push(p);
+    if(PITCHER_POS_RE.test(p.pos||"")) pitchers.push(p);
+    else hitters.push(p);
   });
   hitters.sort((a,b)=> tierRank(b.ovr)-tierRank(a.ovr));
   pitchers.sort((a,b)=> tierRank(b.ovr)-tierRank(a.ovr));
@@ -2138,14 +2148,16 @@ function renderGames(){
         <span>Box Score &darr;</span>
       </div>
       <div class="game-row-score">
-        <span class="${awayWin?'win':'lose'}">${teamName(g.away)} ${awayTotal}</span>
-        <span class="${!awayWin?'win':'lose'}">${teamName(g.home)} ${homeTotal}</span>
+        <span class="${awayWin?'win':'lose'}">${teamName(g.away)} <img class="team-logo" data-logo-team="${escapeAttr(g.away)}" alt=""> &ndash; ${awayTotal}</span>
+        <span class="${!awayWin?'win':'lose'}">${teamName(g.home)} <img class="team-logo" data-logo-team="${escapeAttr(g.home)}" alt=""> &ndash; ${homeTotal}</span>
       </div>
       <div class="linescore-wrap" id="line-${i}">
         ${linescoreTable(g)}
       </div>
     </div>`;
   }).join("");
+
+  applyTeamLogos(document.getElementById("gameList"));
 
   document.querySelectorAll(".game-row").forEach(row=>{
     row.addEventListener("click", ()=>{
@@ -2173,27 +2185,39 @@ function linescoreTable(g){
   </table>`;
 }
 
+// A record entry is a "team record" (e.g. Longest Win Streak) rather than
+// a player record when its holder name is actually the team's name — in
+// that case the circular avatar should show the team's logo instead of a
+// player's initials/photo.
+function isTeamRecord(r, team){
+  return !!team && !!r.name && r.name.trim().toLowerCase()===team.name.trim().toLowerCase();
+}
 function renderRecords(){
   const el = document.getElementById("recordsList");
-  const records = recordsArr();
+  const records = allRecordsArr();
   if(!records.length){
-    el.innerHTML = `<div class="no-data-note">No league records on file for this season yet.</div>`;
+    el.innerHTML = `<div class="no-data-note">No league records on file yet.</div>`;
     return;
   }
   el.innerHTML = records.map(r=>{
     const team = teamById()[r.team];
+    const teamRecord = isTeamRecord(r, team);
+    const avatar = teamRecord
+      ? `<div class="record-avatar" data-avatar-team="${escapeAttr(r.team)}" style="border-color:${team.color}"></div>`
+      : `<div class="record-avatar" data-photo-name="${escapeAttr(r.name)}" style="border-color:${team?team.color:"var(--gold)"}">${initials(r.name)}</div>`;
     return `
     <div class="record-row">
-      <div class="record-avatar" data-photo-name="${escapeAttr(r.name)}" style="border-color:${team?team.color:"var(--gold)"}">${initials(r.name)}</div>
+      ${avatar}
       <div class="record-info">
         <div class="record-stat-name">${r.stat}</div>
-        <div class="record-holder">${r.name||"&mdash;"}${team ? ` &middot; <img class="team-logo" data-logo-team="${escapeAttr(r.team)}" alt="">${teamTag(r.team)} ${team.name}` : ""}</div>
+        <div class="record-holder">${r.name||"&mdash;"}${team ? ` &middot; <img class="team-logo" data-logo-team="${escapeAttr(r.team)}" alt="">${teamTag(r.team)}` : ""}</div>
       </div>
       <div class="record-value">${r.value}</div>
     </div>`;
   }).join("");
   applyPlayerPhotos(el);
   applyTeamLogos(el);
+  applyTeamAvatarPhotos(el);
 }
 
 // HISTORY stores champion/runner-up as plain team names rather than ids, so
@@ -2448,6 +2472,19 @@ function applyTeamLogos(root){
     if(!id) return;
     loadTeamLogo(id).then(dataUrl=>{
       if(dataUrl){ img.src = dataUrl; img.style.display = "inline-block"; }
+    });
+  });
+}
+
+// Same idea as applyTeamLogos above, but for round avatar placeholders
+// (e.g. team-record avatars on the Records tab) that need the logo written
+// into their innerHTML as an <img> rather than filling an existing <img src>.
+function applyTeamAvatarPhotos(root){
+  (root||document).querySelectorAll("[data-avatar-team]").forEach(el=>{
+    const id = el.dataset.avatarTeam;
+    if(!id) return;
+    loadTeamLogo(id).then(dataUrl=>{
+      if(dataUrl) el.innerHTML = `<img src="${dataUrl}" alt="">`;
     });
   });
 }
