@@ -1803,16 +1803,33 @@ function ovrBadge(letter, num){
 }
 
 // Rough single-number overall rating shown alongside the letter grade in the
-// OVR badge (e.g. "A+ (85)"), averaging whichever rating fields are most
+// OVR badge (e.g. "A+ (85)"), weighting whichever rating fields are most
 // relevant to the player's role — batting ratings for position players,
-// pitching + fielding/arm for pitchers — rather than every field on the
-// sheet, since batting ratings for a pure pitcher aren't meaningful to their
-// overall. Falls back to null (no number shown) if nothing to average.
-function overallNumber(p){
-  const isPitcher = PITCHER_POS_RE.test(p.pos||"") && (p.vel!=null || p.jnk!=null || p.acc!=null);
-  const weights = isPitcher
-    ? { vel:1, jnk:1, acc:1, fld:0.25 }
-    : { pow:1, con:1, spd:1, fld:1, arm:1 };
+// pitching + fielding for pitchers — rather than every field on the sheet,
+// since batting ratings for a pure pitcher aren't meaningful to their
+// overall. Two-way players (rostered as both hitter and pitcher — see
+// attributesGroups()) get a "complete" overall instead, weighting every
+// rating field evenly since both halves of their game are relevant. Falls
+// back to null (no number shown) if nothing to average.
+// For single-role players shown out of context, pass `forcePitcher`
+// explicitly (true/false) so the number matches whichever table it's being
+// shown on — see the ATTR_PAGES column defs, which pass
+// currentAttrView==="pitchers".
+function isTwoWayPlayer(name){
+  return battersArr().some(b=>b.name===name) && pitchersArr().some(p=>p.name===name);
+}
+function overallNumber(p, forcePitcher){
+  let weights;
+  if(isTwoWayPlayer(p.name)){
+    weights = { pow:1, con:1, spd:1, fld:1, vel:1, acc:1, jnk:1 };
+  } else {
+    const isPitcher = forcePitcher !== undefined
+      ? forcePitcher
+      : PITCHER_POS_RE.test(p.pos||"") && (p.vel!=null || p.jnk!=null || p.acc!=null);
+    weights = isPitcher
+      ? { vel:1, jnk:1, acc:1, fld:0.25 }
+      : { pow:1, con:1, spd:1, fld:1, arm:1 };
+  }
 
   let weightedSum = 0, totalWeight = 0;
   for(const [key, w] of Object.entries(weights)){
@@ -1879,7 +1896,9 @@ const ATTR_PAGES = [
   { title:"Bio", cols:[
     {key:"name", label:"Name"},
     ATTR_TEAM_COL,
-    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr, overallNumber(p))},
+    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
+    {key:"ovrNum", label:"OVR#", sortVal:p=>overallNumber(p)??-1,
+      render:p=>{ const n=overallNumber(p); return n===null ? "&ndash;" : n; }},
     {key:"pos", label:"P. Pos"},
     {key:"pos2", label:"S. Pos", cellClass:"pos2-cell",
       sortVal:p=> (p.pos2 && p.pos2!=="--") ? p.pos2 : "",
@@ -1891,7 +1910,9 @@ const ATTR_PAGES = [
   { title:"Ratings", cols:[
     {key:"name", label:"Name"},
     ATTR_TEAM_COL,
-    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr, overallNumber(p))},
+    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
+    {key:"ovrNum", label:"OVR#", sortVal:p=>overallNumber(p)??-1,
+      render:p=>{ const n=overallNumber(p); return n===null ? "&ndash;" : n; }},
     {key:"pow", label:"POW", render:p=>ratingCell(p.pow)},
     {key:"con", label:"CON", render:p=>ratingCell(p.con)},
     {key:"spd", label:"SPD", render:p=>ratingCell(p.spd)},
@@ -1901,7 +1922,9 @@ const ATTR_PAGES = [
   { title:"Pitching", cols:[
     {key:"name", label:"Name"},
     ATTR_TEAM_COL,
-    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr, overallNumber(p))},
+    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
+    {key:"ovrNum", label:"OVR#", sortVal:p=>overallNumber(p)??-1,
+      render:p=>{ const n=overallNumber(p); return n===null ? "&ndash;" : n; }},
     {key:"vel", label:"VEL", render:p=>ratingCell(p.vel)},
     {key:"jnk", label:"JNK", render:p=>ratingCell(p.jnk)},
     {key:"acc", label:"ACC", render:p=>ratingCell(p.acc)},
@@ -1910,7 +1933,9 @@ const ATTR_PAGES = [
   { title:"Chemistry", cols:[
     {key:"name", label:"Name"},
     ATTR_TEAM_COL,
-    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr, overallNumber(p))},
+    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
+    {key:"ovrNum", label:"OVR#", sortVal:p=>overallNumber(p)??-1,
+      render:p=>{ const n=overallNumber(p); return n===null ? "&ndash;" : n; }},
     {key:"chem", label:"Chem", render:p=>chemBadge(p.chem)},
     {key:"trait1", label:"Trait 1", render:p=>traitPill(p.trait1, p.trait1Tier)},
     {key:"trait2", label:"Trait 2", render:p=>traitPill(p.trait2, p.trait2Tier)},
@@ -2429,7 +2454,12 @@ function playerAttributesCardHtml(attrs){
   const block = (label, value)=>
     `<div class="profile-attr-block"><div class="profile-attr-label">${label}</div><div class="profile-attr-value">${value}</div></div>`;
 
-  const bioBlocks = [ block("OVR", ovrBadge(attrs.ovr, overallNumber(attrs))), block("Pos", attrs.pos||"&ndash;") ];
+  const overallNum = overallNumber(attrs);
+  const bioBlocks = [
+    block("OVR", ovrBadge(attrs.ovr)),
+    block("OVR#", overallNum===null ? "&ndash;" : overallNum),
+    block("Pos", attrs.pos||"&ndash;")
+  ];
   if(attrs.pos2 && attrs.pos2!=="--") bioBlocks.push(block("2nd Pos", attrs.pos2));
   bioBlocks.push(block("Age", attrs.age||"&ndash;"));
   if(attrs.bat) bioBlocks.push(block("Bat", attrs.bat));
