@@ -491,6 +491,16 @@
     color:var(--navy-950);
     font-weight:600;
   }
+  .team-logo{
+    display:none; /* JS reveals this once a logo is found for the team */
+    width:20px;
+    height:20px;
+    object-fit:contain;
+    vertical-align:middle;
+    margin-right:6px;
+    border-radius:3px;
+  }
+  .champ .team-logo, .history-table td .team-logo{ width:18px; height:18px; }
 
   /* ---------- leader cards ---------- */
   .leader-grid{
@@ -1136,6 +1146,16 @@
     </div>
 
     <div class="import-block">
+      <h4>Team Logos</h4>
+      <p>Pick a team and upload a logo. Shown next to team names in Standings, League Records, and Season History for everyone. A team's logo carries over across seasons automatically.</p>
+      <div class="import-row">
+        <select id="logoTeamSelect" class="season-select" style="background:var(--navy-950); color:var(--cream); border-color:var(--hairline);"></select>
+        <label class="file-btn">Choose Logo<input type="file" accept="image/*" id="logoFile" style="display:none;"></label>
+      </div>
+      <div class="import-status" id="logoStatus"></div>
+    </div>
+
+    <div class="import-block">
       <h4>Teams / Standings (bulk CSV)</h4>
       <p>Columns: id, name, wins, losses, streak, last10, runsFor, runsAgainst, color (hex, optional)</p>
       <div class="import-row">
@@ -1423,6 +1443,21 @@ function weeklyData(){
   if(!s.weekly.pitcher) s.weekly.pitcher = {name:"",team:"",stat:""};
   return s.weekly;
 }
+
+// The Player/Pitcher of the Week strip at the top of the page (above the
+// tabs) always shows the most recent honors on file, searching backward
+// through seasons (SEASON_IDS is newest-first) instead of being tied to
+// whichever season happens to be selected — so it stays put at the top
+// instead of going blank when someone switches to an older season. This is
+// separate from weeklyData(), which the admin editor still uses to read/save
+// the currently-selected season's honors specifically.
+function displayWeeklyData(){
+  for(const id of SEASON_IDS){
+    const w = SEASONS[id].weekly;
+    if(w && ((w.player && w.player.name) || (w.pitcher && w.pitcher.name))) return w;
+  }
+  return { player:{name:"",team:"",stat:""}, pitcher:{name:"",team:"",stat:""} };
+}
 function recordsArr(){
   const s = SEASONS[state.season];
   if(!s.records) s.records = [];
@@ -1505,7 +1540,7 @@ function renderSeasonSelect(){
 
 function renderWeekly(){
   const el = document.getElementById("weeklyStrip");
-  const w = weeklyData();
+  const w = displayWeeklyData();
   const cards = [
     { label:"Player of the Week", data:w.player },
     { label:"Pitcher of the Week", data:w.pitcher },
@@ -1533,13 +1568,12 @@ function renderWeekly(){
   applyPlayerPhotos(el);
 }
 
-let standingsSort = {key:null, dir:1};
-function renderStandings(){
-  const rows = standingsData();
-  const tbody = document.querySelector("#standingsTable tbody");
-  tbody.innerHTML = rows.map(t=>`
+// Shared row markup for the Standings table, used both on initial render and
+// after a column-header sort (see the #standingsTable thead click handler).
+function standingsRowHtml(t){
+  return `
     <tr>
-      <td>${teamTag(t.id)} ${t.name}</td>
+      <td><img class="team-logo" data-logo-team="${escapeAttr(t.id)}" alt="">${teamTag(t.id)} ${t.name}</td>
       <td>${t.wins}</td>
       <td>${t.losses}</td>
       <td>${t.pct}</td>
@@ -1550,7 +1584,15 @@ function renderStandings(){
       <td>${t.runsAgainst}</td>
       <td>${t.diff}</td>
     </tr>
-  `).join("");
+  `;
+}
+
+let standingsSort = {key:null, dir:1};
+function renderStandings(){
+  const rows = standingsData();
+  const tbody = document.querySelector("#standingsTable tbody");
+  tbody.innerHTML = rows.map(standingsRowHtml).join("");
+  applyTeamLogos(tbody);
 }
 
 function paOf(b){ return (b.ab||0)+(b.bb||0)+(b.hbp||0)+(b.sac||0)+(b.sf||0); }
@@ -1753,10 +1795,25 @@ function ovrColor(letter){
   if(letter==="S") return "#2FC9D6";
   return gradientColor(tierRank(letter)/(TIER_ORDER.length-2));
 }
-function ovrBadge(letter){
+function ovrBadge(letter, num){
   const bg = ovrColor(letter);
   const textColor = letter==="S" ? "var(--navy-950)" : "#fff";
-  return `<span class="ovr-badge" style="background:${bg}; color:${textColor};">${letter}</span>`;
+  const numText = (num===null||num===undefined) ? "" : ` (${num})`;
+  return `<span class="ovr-badge" style="background:${bg}; color:${textColor};">${letter}${numText}</span>`;
+}
+
+// Rough single-number overall rating shown alongside the letter grade in the
+// OVR badge (e.g. "A+ (85)"), averaging whichever rating fields are most
+// relevant to the player's role — batting ratings for position players,
+// pitching + fielding/arm for pitchers — rather than every field on the
+// sheet, since batting ratings for a pure pitcher aren't meaningful to their
+// overall. Falls back to null (no number shown) if nothing to average.
+function overallNumber(p){
+  const isPitcher = PITCHER_POS_RE.test(p.pos||"") && (p.vel!=null || p.jnk!=null || p.acc!=null);
+  const fields = isPitcher ? ["vel","jnk","acc","fld","arm"] : ["pow","con","spd","fld","arm"];
+  const vals = fields.map(k=>p[k]).filter(v=>v!==null && v!==undefined);
+  if(!vals.length) return null;
+  return Math.round(vals.reduce((s,v)=>s+v,0)/vals.length);
 }
 function ratingCell(v){
   if(v===null || v===undefined) return `<div class="rating-cell rating-empty">&ndash;</div>`;
@@ -1808,12 +1865,12 @@ function attributesGroups(){
 // "team" is included as the 2nd column on every page (right after name) so
 // it can stay pinned alongside the name column — see the sticky CSS for
 // #attributesTable, which pins the first *two* columns for this table.
-const ATTR_TEAM_COL = {key:"team", label:"Team", render:p=> `${teamTag(p.team)} ${p.team||""}`};
+const ATTR_TEAM_COL = {key:"team", label:"Team", render:p=> teamTag(p.team)};
 const ATTR_PAGES = [
   { title:"Bio", cols:[
     {key:"name", label:"Name"},
     ATTR_TEAM_COL,
-    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
+    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr, overallNumber(p))},
     {key:"pos", label:"P. Pos"},
     {key:"pos2", label:"S. Pos", cellClass:"pos2-cell",
       sortVal:p=> (p.pos2 && p.pos2!=="--") ? p.pos2 : "",
@@ -1825,7 +1882,7 @@ const ATTR_PAGES = [
   { title:"Ratings", cols:[
     {key:"name", label:"Name"},
     ATTR_TEAM_COL,
-    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
+    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr, overallNumber(p))},
     {key:"pow", label:"POW", render:p=>ratingCell(p.pow)},
     {key:"con", label:"CON", render:p=>ratingCell(p.con)},
     {key:"spd", label:"SPD", render:p=>ratingCell(p.spd)},
@@ -1835,7 +1892,7 @@ const ATTR_PAGES = [
   { title:"Pitching", cols:[
     {key:"name", label:"Name"},
     ATTR_TEAM_COL,
-    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
+    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr, overallNumber(p))},
     {key:"vel", label:"VEL", render:p=>ratingCell(p.vel)},
     {key:"jnk", label:"JNK", render:p=>ratingCell(p.jnk)},
     {key:"acc", label:"ACC", render:p=>ratingCell(p.acc)},
@@ -1844,7 +1901,7 @@ const ATTR_PAGES = [
   { title:"Chemistry", cols:[
     {key:"name", label:"Name"},
     ATTR_TEAM_COL,
-    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
+    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr, overallNumber(p))},
     {key:"chem", label:"Chem", render:p=>chemBadge(p.chem)},
     {key:"trait1", label:"Trait 1", render:p=>traitPill(p.trait1, p.trait1Tier)},
     {key:"trait2", label:"Trait 2", render:p=>traitPill(p.trait2, p.trait2Tier)},
@@ -2090,23 +2147,42 @@ function renderRecords(){
       <div class="record-avatar" data-photo-name="${escapeAttr(r.name)}" style="border-color:${team?team.color:"var(--gold)"}">${initials(r.name)}</div>
       <div class="record-info">
         <div class="record-stat-name">${r.stat}</div>
-        <div class="record-holder">${r.name||"&mdash;"}${team ? ` &middot; ${teamTag(r.team)} ${team.name}` : ""}</div>
+        <div class="record-holder">${r.name||"&mdash;"}${team ? ` &middot; <img class="team-logo" data-logo-team="${escapeAttr(r.team)}" alt="">${teamTag(r.team)} ${team.name}` : ""}</div>
       </div>
       <div class="record-value">${r.value}</div>
     </div>`;
   }).join("");
   applyPlayerPhotos(el);
+  applyTeamLogos(el);
+}
+
+// HISTORY stores champion/runner-up as plain team names rather than ids, so
+// logo lookup has to go the other direction — search every season's roster
+// (names are stable across seasons even if a team's id ever changed).
+function teamIdByName(name){
+  for(const id of SEASON_IDS){
+    const t = (SEASONS[id].teams||[]).find(t=>t.name===name);
+    if(t) return t.id;
+  }
+  return null;
+}
+
+function historyLogoHtml(teamName){
+  const id = teamIdByName(teamName);
+  return id ? `<img class="team-logo" data-logo-team="${escapeAttr(id)}" alt="">` : "";
 }
 
 function renderHistory(){
-  document.querySelector("#historyTable tbody").innerHTML = HISTORY.map(h=>`
+  const historyTbody = document.querySelector("#historyTable tbody");
+  historyTbody.innerHTML = HISTORY.map(h=>`
     <tr>
       <td>${h.season}</td>
-      <td class="champ">${h.champion}</td>
-      <td>${h.runnerUp}</td>
+      <td class="champ">${historyLogoHtml(h.champion)}${h.champion}</td>
+      <td>${historyLogoHtml(h.runnerUp)}${h.runnerUp}</td>
       <td>${h.fmvp}</td>
     </tr>
   `).join("");
+  applyTeamLogos(historyTbody);
 
   document.getElementById("awardsGrid").innerHTML = awardsArr().map(a=>`
     <div class="award-card">
@@ -2300,6 +2376,42 @@ function applyPlayerPhotos(root){
   });
 }
 
+/* ---------- team logos (stored in shared key/value storage, same pattern
+   as player photos above, but keyed by team id — logos don't change season
+   to season the way rosters do) ---------- */
+
+function logoKey(teamId){
+  return "logo_" + normTeamKey(teamId).replace(/[^a-zA-Z0-9]+/g,"_").slice(0,150);
+}
+
+async function saveTeamLogo(teamId, dataUrl){
+  if(!window.storage) throw new Error("Storage isn't available here.");
+  await window.storage.set(logoKey(teamId), dataUrl, true);
+}
+
+async function loadTeamLogo(teamId){
+  if(!window.storage || !teamId) return null;
+  try{
+    const res = await window.storage.get(logoKey(teamId), true);
+    return res ? res.value : null;
+  }catch(e){
+    return null; // no logo saved for this team yet
+  }
+}
+
+// After rendering <img class="team-logo" data-logo-team="ID"> placeholders
+// (hidden by default via CSS), reveal + fill in any team that has a saved
+// logo. Scoped to `root` so re-renders don't race against stale lookups.
+function applyTeamLogos(root){
+  (root||document).querySelectorAll("[data-logo-team]").forEach(img=>{
+    const id = img.dataset.logoTeam;
+    if(!id) return;
+    loadTeamLogo(id).then(dataUrl=>{
+      if(dataUrl){ img.src = dataUrl; img.style.display = "inline-block"; }
+    });
+  });
+}
+
 // Renders the same visual language as the Attributes tab (rating bars, OVR
 // badge, chem badge, trait pills) as a compact snapshot on a player's
 // profile, rather than duplicating the whole sortable table there.
@@ -2308,7 +2420,7 @@ function playerAttributesCardHtml(attrs){
   const block = (label, value)=>
     `<div class="profile-attr-block"><div class="profile-attr-label">${label}</div><div class="profile-attr-value">${value}</div></div>`;
 
-  const bioBlocks = [ block("OVR", ovrBadge(attrs.ovr)), block("Pos", attrs.pos||"&ndash;") ];
+  const bioBlocks = [ block("OVR", ovrBadge(attrs.ovr, overallNumber(attrs))), block("Pos", attrs.pos||"&ndash;") ];
   if(attrs.pos2 && attrs.pos2!=="--") bioBlocks.push(block("2nd Pos", attrs.pos2));
   bioBlocks.push(block("Age", attrs.age||"&ndash;"));
   if(attrs.bat) bioBlocks.push(block("Bat", attrs.bat));
@@ -2535,13 +2647,9 @@ document.querySelector("#standingsTable thead").addEventListener("click", e=>{
     if(!isNaN(an) && !isNaN(bn)) return (an-bn)*standingsSort.dir;
     return String(av).localeCompare(String(bv))*standingsSort.dir;
   });
-  document.querySelector("#standingsTable tbody").innerHTML = rows.map(t=>`
-    <tr>
-      <td>${teamTag(t.id)} ${t.name}</td>
-      <td>${t.wins}</td><td>${t.losses}</td><td>${t.pct}</td><td>${t.gb}</td>
-      <td>${t.last10}</td><td>${t.streak}</td><td>${t.runsFor}</td><td>${t.runsAgainst}</td><td>${t.diff}</td>
-    </tr>
-  `).join("");
+  const tbody = document.querySelector("#standingsTable tbody");
+  tbody.innerHTML = rows.map(standingsRowHtml).join("");
+  applyTeamLogos(tbody);
 });
 
 document.querySelectorAll("#statToggleRow .toggle-btn").forEach(btn=>{
@@ -2601,6 +2709,7 @@ function renderAll(){
     renderAdminRecordsEditor();
     renderAdminGamesEditor();
     renderPhotoPlayerSelect();
+    renderLogoTeamSelect();
     renderSheetUrlInputs();
   }
 }
@@ -2786,6 +2895,16 @@ function renderPhotoPlayerSelect(){
   if(!sel) return;
   const names = Array.from(new Set([...battersArr(), ...pitchersArr()].map(p=>p.name))).sort();
   sel.innerHTML = names.map(n=>`<option value="${escapeAttr(n)}">${n}</option>`).join("");
+}
+
+/* ---------- admin: team logo upload ---------- */
+
+function renderLogoTeamSelect(){
+  const sel = document.getElementById("logoTeamSelect");
+  if(!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = teamsArr().map(t=>`<option value="${escapeAttr(t.id)}">${escapeAttr(t.id)} &mdash; ${escapeAttr(t.name)}</option>`).join("");
+  if(prev && teamsArr().some(t=>t.id===prev)) sel.value = prev;
 }
 
 /* ---------- admin: sync from Google Sheets ---------- */
@@ -3111,6 +3230,22 @@ document.getElementById("photoFile").addEventListener("change", async e=>{
     setStatus(statusEl, `Saved photo for ${name}.`, false);
   }catch(err){
     setStatus(statusEl, err.message || "Couldn't save that photo.", true);
+  }
+  e.target.value = "";
+});
+
+document.getElementById("logoFile").addEventListener("change", async e=>{
+  const file = e.target.files[0]; if(!file) return;
+  const statusEl = document.getElementById("logoStatus");
+  const teamId = document.getElementById("logoTeamSelect").value;
+  if(!teamId){ setStatus(statusEl, "Pick a team first.", true); return; }
+  try{
+    const dataUrl = await resizeImageFile(file, 300);
+    await saveTeamLogo(teamId, dataUrl);
+    setStatus(statusEl, `Saved logo for ${teamId}.`, false);
+    renderAll();
+  }catch(err){
+    setStatus(statusEl, err.message || "Couldn't save that logo.", true);
   }
   e.target.value = "";
 });
