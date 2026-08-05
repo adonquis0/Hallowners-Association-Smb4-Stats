@@ -1807,20 +1807,26 @@ function ovrBadge(letter, num){
 // relevant to the player's role — batting ratings for position players,
 // pitching + fielding for pitchers — rather than every field on the sheet,
 // since batting ratings for a pure pitcher aren't meaningful to their
-// overall. Two-way players (rostered as both hitter and pitcher — see
-// attributesGroups()) get a "complete" overall instead, weighting every
-// rating field evenly since both halves of their game are relevant. Falls
-// back to null (no number shown) if nothing to average.
+// overall. Two-way players get a "complete" overall instead, weighting
+// every rating field evenly since both halves of their game are relevant.
+// Falls back to null (no number shown) if nothing to average.
 // For single-role players shown out of context, pass `forcePitcher`
 // explicitly (true/false) so the number matches whichever table it's being
 // shown on — see the ATTR_PAGES column defs, which pass
 // currentAttrView==="pitchers".
-function isTwoWayPlayer(name){
-  return battersArr().some(b=>b.name===name) && pitchersArr().some(p=>p.name===name);
+//
+// "Two-way" here means the player actually carries the in-game Two Way (IF)
+// or Two Way (OF) trait — NOT just "appears in both the batting and
+// pitching stat sheets", since a mop-up reliever who got a token at-bat in
+// a blowout (or a position player who pitched an inning of a blowout) would
+// otherwise wrongly qualify.
+function isTwoWayPlayer(p){
+  const isTwoWayTrait = t => typeof t==="string" && t.startsWith("Two Way");
+  return isTwoWayTrait(p.trait1) || isTwoWayTrait(p.trait2);
 }
 function overallNumber(p, forcePitcher){
   let weights;
-  if(isTwoWayPlayer(p.name)){
+  if(isTwoWayPlayer(p)){
     weights = { pow:1, con:1, spd:1, fld:1, vel:1, acc:1, jnk:1 };
   } else {
     const isPitcher = forcePitcher !== undefined
