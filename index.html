@@ -89,39 +89,110 @@
   }
   .season-select:hover{background:var(--gold-dim);}
 
-  /* ---------- scoreboard strip (signature element) ---------- */
-  .scoreboard{
+  /* ---------- weekly awards strip (signature element) ---------- */
+  .weekly-strip{
     margin:22px 0 8px;
     display:grid;
-    grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
     gap:2px;
     background:var(--navy-950);
     border:1px solid var(--hairline);
   }
-  .sb-cell{
+  .weekly-card{
     background:var(--navy-800);
-    padding:12px 14px;
-    position:relative;
+    padding:16px 18px;
+    display:flex;
+    align-items:center;
+    gap:16px;
+    border-top:2px solid var(--gold);
   }
-  .sb-cell .sb-team{
+  .weekly-card-photo{
+    width:68px;
+    height:68px;
+    flex-shrink:0;
+    border-radius:50%;
+    background:var(--navy-600);
+    border:2px solid var(--gold);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:'Anton',sans-serif;
+    font-size:22px;
+    color:var(--gold);
+    overflow:hidden;
+  }
+  .weekly-card-photo img{width:100%; height:100%; object-fit:cover;}
+  .weekly-card-label{
     font-family:'IBM Plex Mono',monospace;
-    font-size:11px;
+    font-size:10.5px;
     letter-spacing:2px;
-    color:var(--cream-dim);
+    color:var(--gold);
     text-transform:uppercase;
   }
-  .sb-cell .sb-record{
+  .weekly-card-name{
     font-family:'Anton',sans-serif;
-    font-size:28px;
-    color:var(--gold);
-    letter-spacing:1px;
+    font-size:20px;
+    letter-spacing:0.3px;
+    color:var(--cream);
+    text-transform:uppercase;
+    line-height:1.15;
+    margin-top:2px;
+  }
+  .weekly-card-stat{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--cream-dim);
     margin-top:4px;
   }
-  .sb-cell .sb-sub{
+
+  /* ---------- league records tab ---------- */
+  .records-list{display:flex; flex-direction:column; gap:2px;}
+  .record-row{
+    background:var(--navy-700);
+    border:1px solid var(--hairline);
+    padding:14px 18px;
+    display:flex;
+    align-items:center;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  .record-avatar{
+    width:44px;
+    height:44px;
+    flex-shrink:0;
+    border-radius:50%;
+    background:var(--navy-600);
+    border:2px solid var(--gold);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:'Anton',sans-serif;
+    font-size:14px;
+    color:var(--gold);
+    overflow:hidden;
+  }
+  .record-avatar img{width:100%; height:100%; object-fit:cover;}
+  .record-info{flex:1; min-width:160px;}
+  .record-stat-name{
     font-family:'IBM Plex Mono',monospace;
-    font-size:10px;
+    font-size:10.5px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
     color:var(--cream-dim);
+  }
+  .record-holder{
+    font-family:'Anton',sans-serif;
+    font-size:17px;
+    text-transform:uppercase;
+    color:var(--cream);
     margin-top:2px;
+  }
+  .record-value{
+    font-family:'Anton',sans-serif;
+    font-size:26px;
+    color:var(--gold);
+    letter-spacing:0.5px;
+    white-space:nowrap;
   }
 
   /* ---------- Nav tabs ---------- */
@@ -534,7 +605,9 @@
   }
   #adminTeamBody input[type="text"]{width:64px;}
   #adminTeamBody td:first-child{white-space:nowrap;}
-  #adminGamesBody input, #adminGamesBody select{
+  #adminGamesBody input, #adminGamesBody select,
+  #adminWeeklyBody input, #adminWeeklyBody select,
+  #adminRecordsBody input, #adminRecordsBody select{
     background:var(--navy-950);
     border:1px solid var(--hairline);
     color:var(--cream);
@@ -549,6 +622,21 @@
   #adminGamesBody td{white-space:nowrap;}
   #adminGamesBody .admin-game-remove{color:var(--crimson); border-color:var(--crimson);}
   #adminGamesBody .admin-game-remove:hover{color:var(--gold); border-color:var(--gold);}
+  #adminWeeklyBody input.admin-name-input{width:150px;}
+  #adminWeeklyBody input.admin-stat-input{width:260px;}
+  #adminWeeklyBody select{width:120px;}
+  #adminWeeklyBody td{white-space:nowrap;}
+  #adminWeeklyBody td:first-child{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:1px;
+    text-transform:uppercase; color:var(--gold);
+  }
+  #adminRecordsBody input.admin-name-input{width:150px;}
+  #adminRecordsBody input.admin-stat-input{width:200px;}
+  #adminRecordsBody input.admin-value-input{width:90px;}
+  #adminRecordsBody select{width:120px;}
+  #adminRecordsBody td{white-space:nowrap;}
+  #adminRecordsBody .admin-record-remove{color:var(--crimson); border-color:var(--crimson);}
+  #adminRecordsBody .admin-record-remove:hover{color:var(--gold); border-color:var(--gold);}
   .player-overlay-awards{
     display:grid;
     grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
@@ -839,7 +927,7 @@
       <button class="season-select" id="adminSignInBtn" style="background:transparent; color:var(--gold); border-color:var(--gold);">Admin</button>
     </div>
   </div>
-  <div class="scoreboard" id="scoreboard"></div>
+  <div class="weekly-strip" id="weeklyStrip"></div>
 </div>
 
 <nav class="tabs" id="tabs">
@@ -847,6 +935,7 @@
   <button class="tab-btn" data-tab="players">Players</button>
   <button class="tab-btn" data-tab="attributes">Attributes</button>
   <button class="tab-btn" data-tab="boxscores">Box Scores</button>
+  <button class="tab-btn" data-tab="records">Records</button>
   <button class="tab-btn" data-tab="history">History &amp; Awards</button>
   <button class="tab-btn" data-tab="import" id="adminTabBtn">Admin</button>
 </nav>
@@ -927,6 +1016,11 @@
     <div class="game-list" id="gameList"></div>
   </section>
 
+  <section class="panel" id="panel-records">
+    <h2 class="section-title">League Records</h2>
+    <div class="records-list" id="recordsList"></div>
+  </section>
+
   <section class="panel" id="panel-history">
     <h2 class="section-title">Season History</h2>
     <table class="history-table" id="historyTable">
@@ -945,7 +1039,7 @@
 
     <div class="import-block">
       <h4>Quick Update &mdash; Team Records</h4>
-      <p>Update after every series. Edit any field and hit Save; standings, scoreboard, and GB recalculate automatically.</p>
+      <p>Update after every series. Edit any field and hit Save; standings and GB recalculate automatically.</p>
       <div style="overflow-x:auto;">
         <table id="adminTeamTable">
           <thead><tr>
@@ -958,6 +1052,41 @@
         <button class="file-btn" id="adminTeamSave">Save Team Updates</button>
       </div>
       <div class="import-status" id="adminTeamStatus"></div>
+    </div>
+
+    <div class="import-block">
+      <h4>Quick Update &mdash; Player / Pitcher of the Week</h4>
+      <p>Shown as the graphic at the top of the page, above the tabs. Photos are pulled from the Player Photos uploader below &mdash; upload a photo under the same name to have it appear here automatically.</p>
+      <div style="overflow-x:auto;">
+        <table id="adminWeeklyTable">
+          <thead><tr>
+            <th style="text-align:left;">Award</th><th style="text-align:left;">Player</th><th style="text-align:left;">Team</th><th style="text-align:left;">Weekly Stat Line</th>
+          </tr></thead>
+          <tbody id="adminWeeklyBody"></tbody>
+        </table>
+      </div>
+      <div class="import-row" style="margin-top:12px;">
+        <button class="file-btn" id="adminWeeklySave">Save Weekly Honors</button>
+      </div>
+      <div class="import-status" id="adminWeeklyStatus"></div>
+    </div>
+
+    <div class="import-block">
+      <h4>Quick Update &mdash; League Records</h4>
+      <p>Shown on the Records tab. Add a row per record (e.g. Longest Home Run, Most Strikeouts in a Game). Photos are pulled from the Player Photos uploader below.</p>
+      <div style="overflow-x:auto;">
+        <table id="adminRecordsTable">
+          <thead><tr>
+            <th style="text-align:left;">Record</th><th style="text-align:left;">Value</th><th style="text-align:left;">Player / Team Name</th><th style="text-align:left;">Team</th><th></th>
+          </tr></thead>
+          <tbody id="adminRecordsBody"></tbody>
+        </table>
+      </div>
+      <div class="import-row" style="margin-top:12px;">
+        <button class="template-link" id="adminRecordAdd">+ Add Record</button>
+        <button class="file-btn" id="adminRecordsSave">Save Records</button>
+      </div>
+      <div class="import-status" id="adminRecordsStatus"></div>
     </div>
 
     <div class="import-block">
@@ -1230,6 +1359,16 @@ const SEASONS = {
       { name:"Rookie",     winner:"TBD", team:"TBD", detail:"TBD" },
       { name:"Comeback",   winner:"TBD", team:"TBD", detail:"TBD" },
     ],
+    weekly: {
+      player:  { name:"I Show Speed",       team:"CRW", stat:".450 AVG, 3 HR, 9 RBI, 1.210 OPS" },
+      pitcher: { name:"Lucius Rokesmith",    team:"CRW", stat:"2-0, 0.87 ERA, 14 K in 10.1 IP" },
+    },
+    records: [
+      { stat:"Longest Home Run",              value:"482 ft",  name:"I Show Speed",  team:"CRW" },
+      { stat:"Most Strikeouts (Game, Pitcher)", value:"16 K",  name:"Lucius Rokesmith", team:"CRW" },
+      { stat:"Most RBI (Game)",               value:"7 RBI",   name:"Kanye West",    team:"CRW" },
+      { stat:"Longest Win Streak",            value:"9 games", name:"Spirits",       team:"SPR" },
+    ],
   },
 
   s1: {
@@ -1250,6 +1389,11 @@ const SEASONS = {
       { name:"Cy Young",   winner:"Lucius Rokesmith", team:"CRW", detail:"2.55 ERA, 0.96 WHIP",
         nominees:[ { name:"Lucius Rokesmith", team:"CRW", detail:"2.55 ERA, 0.96 WHIP" }, { name:"Master Tactition Funk", team:"FL7", detail:"3.42 ERA, 19K" } ] },
     ],
+    weekly: {
+      player:  { name:"", team:"", stat:"" },
+      pitcher: { name:"", team:"", stat:"" },
+    },
+    records: [],
   },
 
 };
@@ -1272,6 +1416,18 @@ function pitchersArr(){ return SEASONS[state.season].pitchers; }
 function attributesArr(){ return SEASONS[state.season].attributes || []; }
 function gamesArr(){ return SEASONS[state.season].games; }
 function awardsArr(){ return SEASONS[state.season].awards; }
+function weeklyData(){
+  const s = SEASONS[state.season];
+  if(!s.weekly) s.weekly = { player:{name:"",team:"",stat:""}, pitcher:{name:"",team:"",stat:""} };
+  if(!s.weekly.player) s.weekly.player = {name:"",team:"",stat:""};
+  if(!s.weekly.pitcher) s.weekly.pitcher = {name:"",team:"",stat:""};
+  return s.weekly;
+}
+function recordsArr(){
+  const s = SEASONS[state.season];
+  if(!s.records) s.records = [];
+  return s.records;
+}
 
 // Career (all-seasons) rollups for the Full Stats table's career checkbox.
 // Relies on getPlayerCareer()/careerBattingTotals()/careerPitchingTotals(),
@@ -1347,15 +1503,34 @@ function renderSeasonSelect(){
   sel.innerHTML = SEASON_IDS.map(id=>`<option value="${id}" ${id===state.season?"selected":""}>${SEASONS[id].label}</option>`).join("");
 }
 
-function renderScoreboard(){
-  const el = document.getElementById("scoreboard");
-  el.innerHTML = standingsData().map(t=>`
-    <div class="sb-cell" style="border-top:2px solid ${t.color}">
-      <div class="sb-team">${t.name}</div>
-      <div class="sb-record">${t.wins}-${t.losses}</div>
-      <div class="sb-sub">${t.streak} &middot; ${t.pct} PCT</div>
-    </div>
-  `).join("");
+function renderWeekly(){
+  const el = document.getElementById("weeklyStrip");
+  const w = weeklyData();
+  const cards = [
+    { label:"Player of the Week", data:w.player },
+    { label:"Pitcher of the Week", data:w.pitcher },
+  ].filter(c=> c.data && c.data.name);
+
+  if(!cards.length){
+    el.innerHTML = `<div class="weekly-card"><div class="no-data-note">No weekly honors on file for this season yet.</div></div>`;
+    return;
+  }
+
+  el.innerHTML = cards.map(c=>{
+    const p = c.data;
+    const team = teamById()[p.team];
+    return `
+    <div class="weekly-card">
+      <div class="weekly-card-photo" data-photo-name="${escapeAttr(p.name)}" style="border-color:${team?team.color:"var(--gold)"}">${initials(p.name)}</div>
+      <div>
+        <div class="weekly-card-label">${c.label}</div>
+        <div class="weekly-card-name">${p.name}</div>
+        <div class="weekly-card-stat">${team ? `${teamTag(p.team)} ${team.name}` : ""}${team && p.stat ? " &middot; " : ""}${p.stat||""}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  applyPlayerPhotos(el);
 }
 
 let standingsSort = {key:null, dir:1};
@@ -1901,6 +2076,28 @@ function linescoreTable(g){
   </table>`;
 }
 
+function renderRecords(){
+  const el = document.getElementById("recordsList");
+  const records = recordsArr();
+  if(!records.length){
+    el.innerHTML = `<div class="no-data-note">No league records on file for this season yet.</div>`;
+    return;
+  }
+  el.innerHTML = records.map(r=>{
+    const team = teamById()[r.team];
+    return `
+    <div class="record-row">
+      <div class="record-avatar" data-photo-name="${escapeAttr(r.name)}" style="border-color:${team?team.color:"var(--gold)"}">${initials(r.name)}</div>
+      <div class="record-info">
+        <div class="record-stat-name">${r.stat}</div>
+        <div class="record-holder">${r.name||"&mdash;"}${team ? ` &middot; ${teamTag(r.team)} ${team.name}` : ""}</div>
+      </div>
+      <div class="record-value">${r.value}</div>
+    </div>`;
+  }).join("");
+  applyPlayerPhotos(el);
+}
+
 function renderHistory(){
   document.querySelector("#historyTable tbody").innerHTML = HISTORY.map(h=>`
     <tr>
@@ -2088,6 +2285,19 @@ async function loadPlayerPhoto(name){
   }catch(e){
     return null; // no photo saved for this player yet
   }
+}
+
+// After rendering placeholder avatars (initials) with a data-photo-name
+// attribute, swap in the real photo for any player who has one saved.
+// Scoped to `root` so re-renders don't race against stale lookups.
+function applyPlayerPhotos(root){
+  (root||document).querySelectorAll("[data-photo-name]").forEach(el=>{
+    const name = el.dataset.photoName;
+    if(!name) return;
+    loadPlayerPhoto(name).then(dataUrl=>{
+      if(dataUrl) el.innerHTML = `<img src="${dataUrl}" alt="">`;
+    });
+  });
 }
 
 // Renders the same visual language as the Attributes tab (rating bars, OVR
@@ -2372,7 +2582,7 @@ document.getElementById("playersHeadRow").addEventListener("click", e=>{
 
 function renderAll(){
   renderSeasonSelect();
-  renderScoreboard();
+  renderWeekly();
   renderStandings();
   renderLeaders();
   renderPlayersTeamFilter();
@@ -2383,9 +2593,12 @@ function renderAll(){
   renderAttributesHead();
   renderAttributesBody();
   renderGames();
+  renderRecords();
   renderHistory();
   if(isAdmin){
     renderAdminTeamEditor();
+    renderAdminWeeklyEditor();
+    renderAdminRecordsEditor();
     renderAdminGamesEditor();
     renderPhotoPlayerSelect();
     renderSheetUrlInputs();
@@ -2423,6 +2636,85 @@ async function saveAdminTeamEditor(){
   await saveToStorage(`teams_${state.season}`, arr);
   renderAll();
   setStatus(document.getElementById("adminTeamStatus"), "Saved.", false);
+}
+
+/* ---------- admin: player of the week / pitcher of the week ---------- */
+
+function renderAdminWeeklyEditor(){
+  const tbody = document.getElementById("adminWeeklyBody");
+  if(!tbody) return;
+  const w = weeklyData();
+  const teams = teamsArr();
+  const teamOptions = sel => `<option value="">&mdash;</option>` + teams.map(t=>
+    `<option value="${escapeAttr(t.id)}" ${t.id===sel?"selected":""}>${escapeAttr(t.id)} \u2014 ${escapeAttr(t.name)}</option>`
+  ).join("");
+  const rowOf = (key,label,p)=>`
+    <tr data-key="${key}">
+      <td>${label}</td>
+      <td><input type="text" class="admin-name-input" data-field="name" value="${escapeAttr(p.name)}" placeholder="Player name"></td>
+      <td><select data-field="team">${teamOptions(p.team)}</select></td>
+      <td><input type="text" class="admin-stat-input" data-field="stat" value="${escapeAttr(p.stat)}" placeholder="e.g. .450 AVG, 3 HR, 9 RBI"></td>
+    </tr>`;
+  tbody.innerHTML = rowOf("player","Player of the Week", w.player) + rowOf("pitcher","Pitcher of the Week", w.pitcher);
+}
+
+async function saveAdminWeeklyEditor(){
+  const w = weeklyData();
+  document.querySelectorAll("#adminWeeklyBody tr").forEach(row=>{
+    const key = row.dataset.key;
+    const target = key==="player" ? w.player : w.pitcher;
+    row.querySelectorAll("[data-field]").forEach(inp=>{
+      target[inp.dataset.field] = inp.value;
+    });
+  });
+  await saveToStorage(`weekly_${state.season}`, w);
+  renderAll();
+  setStatus(document.getElementById("adminWeeklyStatus"), "Saved.", false);
+}
+
+/* ---------- admin: league records editor ---------- */
+
+function renderAdminRecordsEditor(){
+  const tbody = document.getElementById("adminRecordsBody");
+  if(!tbody) return;
+  const teams = teamsArr();
+  const teamOptions = sel => `<option value="">&mdash;</option>` + teams.map(t=>
+    `<option value="${escapeAttr(t.id)}" ${t.id===sel?"selected":""}>${escapeAttr(t.id)} \u2014 ${escapeAttr(t.name)}</option>`
+  ).join("");
+  tbody.innerHTML = recordsArr().map((r,i)=>`
+    <tr data-idx="${i}">
+      <td><input type="text" class="admin-stat-input" data-field="stat" value="${escapeAttr(r.stat)}" placeholder="e.g. Longest Home Run"></td>
+      <td><input type="text" class="admin-value-input" data-field="value" value="${escapeAttr(r.value)}" placeholder="e.g. 482 ft"></td>
+      <td><input type="text" class="admin-name-input" data-field="name" value="${escapeAttr(r.name)}" placeholder="Player or team name"></td>
+      <td><select data-field="team">${teamOptions(r.team)}</select></td>
+      <td><button type="button" class="template-link admin-record-remove" data-idx="${i}">Remove</button></td>
+    </tr>
+  `).join("");
+
+  if(!recordsArr().length){
+    tbody.innerHTML = `<tr><td colspan="5" style="color:var(--cream-dim); font-style:italic;">No records yet — click "+ Add Record" to add one.</td></tr>`;
+  }
+
+  tbody.querySelectorAll(".admin-record-remove").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      recordsArr().splice(Number(btn.dataset.idx),1);
+      renderAdminRecordsEditor();
+    });
+  });
+}
+
+async function saveAdminRecordsEditor(){
+  const arr = recordsArr();
+  document.querySelectorAll("#adminRecordsBody tr[data-idx]").forEach(row=>{
+    const r = arr[Number(row.dataset.idx)];
+    if(!r) return;
+    row.querySelectorAll("[data-field]").forEach(inp=>{
+      r[inp.dataset.field] = inp.value;
+    });
+  });
+  await saveToStorage(`records_${state.season}`, arr);
+  renderAll();
+  setStatus(document.getElementById("adminRecordsStatus"), "Saved.", false);
 }
 
 /* ---------- admin: quick box-score editor ---------- */
@@ -2786,6 +3078,13 @@ document.getElementById("attributesFile").addEventListener("change", e=>{
 
 document.getElementById("adminTeamSave").addEventListener("click", saveAdminTeamEditor);
 document.getElementById("sheetSyncBtn").addEventListener("click", syncFromSheets);
+document.getElementById("adminWeeklySave").addEventListener("click", saveAdminWeeklyEditor);
+
+document.getElementById("adminRecordAdd").addEventListener("click", ()=>{
+  recordsArr().unshift({ stat:"", value:"", name:"", team:"" });
+  renderAdminRecordsEditor();
+});
+document.getElementById("adminRecordsSave").addEventListener("click", saveAdminRecordsEditor);
 
 document.getElementById("adminGameAdd").addEventListener("click", ()=>{
   const teams = teamsArr();
@@ -2826,6 +3125,8 @@ document.getElementById("resetData").addEventListener("click", async ()=>{
         await window.storage.delete(`pitchers_${id}`).catch(()=>{});
         await window.storage.delete(`attributes_${id}`).catch(()=>{});
         await window.storage.delete(`games_${id}`).catch(()=>{});
+        await window.storage.delete(`weekly_${id}`).catch(()=>{});
+        await window.storage.delete(`records_${id}`).catch(()=>{});
       }
     }
   }catch(e){}
@@ -2861,6 +3162,24 @@ async function loadFromStorage(){
         if(!SEASONS[id].games) SEASONS[id].games = [];
         const parsed = JSON.parse(g.value);
         SEASONS[id].games.length=0; SEASONS[id].games.push(...parsed);
+      }
+    }catch(e){}
+    try{
+      const w = await window.storage.get(`weekly_${id}`);
+      if(w && w.value){
+        const parsed = JSON.parse(w.value);
+        SEASONS[id].weekly = {
+          player: parsed.player || {name:"",team:"",stat:""},
+          pitcher: parsed.pitcher || {name:"",team:"",stat:""},
+        };
+      }
+    }catch(e){}
+    try{
+      const r = await window.storage.get(`records_${id}`);
+      if(r && r.value){
+        if(!SEASONS[id].records) SEASONS[id].records = [];
+        const parsed = JSON.parse(r.value);
+        SEASONS[id].records.length=0; SEASONS[id].records.push(...parsed);
       }
     }catch(e){}
   }
