@@ -491,17 +491,17 @@
     gap:18px;
   }
   .player-avatar{
-    width:64px;
-    height:64px;
+    width:128px;
+    height:128px;
     flex-shrink:0;
     border-radius:50%;
     background:var(--navy-600);
-    border:2px solid var(--gold);
+    border:3px solid var(--gold);
     display:flex;
     align-items:center;
     justify-content:center;
     font-family:'Anton',sans-serif;
-    font-size:22px;
+    font-size:42px;
     letter-spacing:0.5px;
     color:var(--gold);
     overflow:hidden;
@@ -534,6 +534,21 @@
   }
   #adminTeamBody input[type="text"]{width:64px;}
   #adminTeamBody td:first-child{white-space:nowrap;}
+  #adminGamesBody input, #adminGamesBody select{
+    background:var(--navy-950);
+    border:1px solid var(--hairline);
+    color:var(--cream);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    padding:5px 6px;
+  }
+  #adminGamesBody input[type="number"]{width:52px;}
+  #adminGamesBody input.admin-date-input{width:96px;}
+  #adminGamesBody input.admin-line-input{width:150px;}
+  #adminGamesBody select{width:120px;}
+  #adminGamesBody td{white-space:nowrap;}
+  #adminGamesBody .admin-game-remove{color:var(--crimson); border-color:var(--crimson);}
+  #adminGamesBody .admin-game-remove:hover{color:var(--gold); border-color:var(--gold);}
   .player-overlay-awards{
     display:grid;
     grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
@@ -943,6 +958,26 @@
         <button class="file-btn" id="adminTeamSave">Save Team Updates</button>
       </div>
       <div class="import-status" id="adminTeamStatus"></div>
+    </div>
+
+    <div class="import-block">
+      <h4>Quick Update &mdash; Recent Box Scores</h4>
+      <p>Add finished games and edit their line scores. Enter each line score as inning-by-inning runs separated by commas (use <code>x</code> for a home team that didn't bat in the bottom of the last inning). Edit any field and hit Save; the Box Scores tab updates automatically.</p>
+      <div style="overflow-x:auto;">
+        <table id="adminGamesTable">
+          <thead><tr>
+            <th style="text-align:left;">Date</th><th style="text-align:left;">Away</th><th style="text-align:left;">Home</th>
+            <th style="text-align:left;">Away Line</th><th style="text-align:left;">Home Line</th>
+            <th>Away H</th><th>Home H</th><th>Away E</th><th>Home E</th><th></th>
+          </tr></thead>
+          <tbody id="adminGamesBody"></tbody>
+        </table>
+      </div>
+      <div class="import-row" style="margin-top:12px;">
+        <button class="template-link" id="adminGameAdd">+ Add Game</button>
+        <button class="file-btn" id="adminGamesSave">Save Box Scores</button>
+      </div>
+      <div class="import-status" id="adminGamesStatus"></div>
     </div>
 
     <div class="import-block">
@@ -2351,6 +2386,7 @@ function renderAll(){
   renderHistory();
   if(isAdmin){
     renderAdminTeamEditor();
+    renderAdminGamesEditor();
     renderPhotoPlayerSelect();
     renderSheetUrlInputs();
   }
@@ -2387,6 +2423,68 @@ async function saveAdminTeamEditor(){
   await saveToStorage(`teams_${state.season}`, arr);
   renderAll();
   setStatus(document.getElementById("adminTeamStatus"), "Saved.", false);
+}
+
+/* ---------- admin: quick box-score editor ---------- */
+
+function parseLineInput(str){
+  return String(str||"").split(",").map(s=>s.trim()).filter(s=>s.length)
+    .map(v=> v.toLowerCase()==="x" ? "x" : (Number(v)||0));
+}
+
+function renderAdminGamesEditor(){
+  const tbody = document.getElementById("adminGamesBody");
+  if(!tbody) return;
+  const teams = teamsArr();
+  const teamOptions = sel => teams.map(t=>
+    `<option value="${escapeAttr(t.id)}" ${t.id===sel?"selected":""}>${escapeAttr(t.id)} \u2014 ${escapeAttr(t.name)}</option>`
+  ).join("");
+  tbody.innerHTML = gamesArr().map((g,i)=>`
+    <tr data-idx="${i}">
+      <td><input type="text" class="admin-date-input" data-field="date" value="${escapeAttr(g.date)}"></td>
+      <td><select data-field="away">${teamOptions(g.away)}</select></td>
+      <td><select data-field="home">${teamOptions(g.home)}</select></td>
+      <td><input type="text" class="admin-line-input" data-field="awayLine" value="${escapeAttr(g.awayLine.join(","))}"></td>
+      <td><input type="text" class="admin-line-input" data-field="homeLine" value="${escapeAttr(g.homeLine.join(","))}"></td>
+      <td><input type="number" data-field="awayHits" value="${g.awayHits}"></td>
+      <td><input type="number" data-field="homeHits" value="${g.homeHits}"></td>
+      <td><input type="number" data-field="awayErr" value="${g.awayErr}"></td>
+      <td><input type="number" data-field="homeErr" value="${g.homeErr}"></td>
+      <td><button type="button" class="template-link admin-game-remove" data-idx="${i}">Remove</button></td>
+    </tr>
+  `).join("");
+
+  if(!gamesArr().length){
+    tbody.innerHTML = `<tr><td colspan="10" style="color:var(--cream-dim); font-style:italic;">No box scores yet — click "+ Add Game" to add one.</td></tr>`;
+  }
+
+  tbody.querySelectorAll(".admin-game-remove").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      gamesArr().splice(Number(btn.dataset.idx),1);
+      renderAdminGamesEditor();
+    });
+  });
+}
+
+async function saveAdminGamesEditor(){
+  const arr = gamesArr();
+  document.querySelectorAll("#adminGamesBody tr[data-idx]").forEach(row=>{
+    const g = arr[Number(row.dataset.idx)];
+    if(!g) return;
+    row.querySelectorAll("[data-field]").forEach(inp=>{
+      const field = inp.dataset.field;
+      if(field==="awayLine" || field==="homeLine"){
+        g[field] = parseLineInput(inp.value);
+      }else if(field==="date" || field==="away" || field==="home"){
+        g[field] = inp.value;
+      }else{
+        g[field] = Number(inp.value)||0;
+      }
+    });
+  });
+  await saveToStorage(`games_${state.season}`, arr);
+  renderAll();
+  setStatus(document.getElementById("adminGamesStatus"), "Saved.", false);
 }
 
 /* ---------- admin: player photo upload ---------- */
@@ -2689,6 +2787,20 @@ document.getElementById("attributesFile").addEventListener("change", e=>{
 document.getElementById("adminTeamSave").addEventListener("click", saveAdminTeamEditor);
 document.getElementById("sheetSyncBtn").addEventListener("click", syncFromSheets);
 
+document.getElementById("adminGameAdd").addEventListener("click", ()=>{
+  const teams = teamsArr();
+  gamesArr().unshift({
+    date: new Date().toISOString().slice(0,10),
+    away: teams[0] ? teams[0].id : "",
+    home: teams[1] ? teams[1].id : "",
+    awayLine: [0,0,0,0,0,0,0,0,0],
+    homeLine: [0,0,0,0,0,0,0,0,"x"],
+    awayHits:0, homeHits:0, awayErr:0, homeErr:0
+  });
+  renderAdminGamesEditor();
+});
+document.getElementById("adminGamesSave").addEventListener("click", saveAdminGamesEditor);
+
 document.getElementById("photoFile").addEventListener("change", async e=>{
   const file = e.target.files[0]; if(!file) return;
   const statusEl = document.getElementById("photoStatus");
@@ -2713,6 +2825,7 @@ document.getElementById("resetData").addEventListener("click", async ()=>{
         await window.storage.delete(`batters_${id}`).catch(()=>{});
         await window.storage.delete(`pitchers_${id}`).catch(()=>{});
         await window.storage.delete(`attributes_${id}`).catch(()=>{});
+        await window.storage.delete(`games_${id}`).catch(()=>{});
       }
     }
   }catch(e){}
@@ -2740,6 +2853,14 @@ async function loadFromStorage(){
         if(!SEASONS[id].attributes) SEASONS[id].attributes = [];
         const parsed = JSON.parse(a.value);
         SEASONS[id].attributes.length=0; SEASONS[id].attributes.push(...parsed);
+      }
+    }catch(e){}
+    try{
+      const g = await window.storage.get(`games_${id}`);
+      if(g && g.value){
+        if(!SEASONS[id].games) SEASONS[id].games = [];
+        const parsed = JSON.parse(g.value);
+        SEASONS[id].games.length=0; SEASONS[id].games.push(...parsed);
       }
     }catch(e){}
   }
