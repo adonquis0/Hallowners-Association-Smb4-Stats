@@ -362,6 +362,17 @@
     background:var(--gold);
     color:var(--navy-950);
   }
+  /* OVR + OVR# sit immediately right of the sticky Name/Team columns, so
+     right-aligning them (the table default) pulls them flush against that
+     sticky edge. Center them with extra left padding instead so there's
+     visible breathing room between the pinned columns and the rest of the
+     table. */
+  #attributesTable td.attr-ovr-cell,
+  #attributesTable th[data-key="ovr"],
+  #attributesTable th[data-key="ovrNum"]{
+    text-align:center;
+    padding-left:20px;
+  }
 
   /* ---------- attributes page pager (POS/OVR/RATINGS/PITCHING/CHEM pages) ---------- */
   .attr-pager{
@@ -818,6 +829,98 @@
     gap:8px;
     align-items:center;
   }
+
+  /* ---------- attributes + highlights side-by-side row on profile ---------- */
+  .profile-top-row{
+    display:flex;
+    gap:28px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+    margin-bottom:8px;
+  }
+  .profile-col-attrs{flex:1 1 320px; min-width:280px;}
+  .profile-col-highlights{flex:1 1 280px; min-width:260px;}
+  .profile-col-highlights .sub-title{margin-top:0;}
+
+  /* ---------- highlights (fan-submitted video links) ---------- */
+  .highlights-add{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    background:var(--navy-700);
+    border:1px solid var(--hairline);
+    padding:12px 14px;
+    margin-bottom:14px;
+  }
+  .highlights-add input[type="text"]{
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+    background:var(--navy-950);
+    border:1px solid var(--hairline);
+    color:var(--cream);
+    padding:8px 10px;
+  }
+  .highlights-add input[type="text"]:focus{outline:none; border-color:var(--gold);}
+  .highlight-add-btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    background:var(--gold);
+    color:var(--navy-950);
+    border:1px solid var(--gold);
+    padding:9px 12px;
+    cursor:pointer;
+  }
+  .highlight-add-btn:hover{background:var(--gold-dim); border-color:var(--gold-dim);}
+  .highlight-add-btn:disabled{opacity:0.5; cursor:default;}
+  .highlights-list{display:flex; flex-direction:column; gap:12px;}
+  .highlight-card{
+    background:var(--navy-700);
+    border:1px solid var(--hairline);
+    border-top:2px solid var(--gold);
+    padding:10px 12px 12px;
+  }
+  .highlight-card-embed{
+    position:relative;
+    width:100%;
+    padding-top:56.25%;
+    background:var(--navy-950);
+    margin-bottom:8px;
+    overflow:hidden;
+  }
+  .highlight-card-embed iframe{
+    position:absolute; inset:0; width:100%; height:100%; border:0;
+  }
+  .highlight-card-title{
+    font-family:'Anton',sans-serif;
+    font-size:14px;
+    letter-spacing:0.3px;
+    color:var(--cream);
+    text-transform:uppercase;
+    margin-bottom:4px;
+    word-break:break-word;
+  }
+  .highlight-card-link{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--cream-dim);
+    word-break:break-all;
+  }
+  .highlight-card-link:hover{color:var(--gold);}
+  .highlight-card-remove{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    background:transparent;
+    border:1px solid var(--crimson);
+    color:var(--crimson);
+    padding:4px 8px;
+    cursor:pointer;
+    margin-top:8px;
+  }
+  .highlight-card-remove:hover{background:var(--crimson); color:var(--cream);}
 
   .toggle-row{display:flex; gap:8px; margin-bottom:16px;}
   .toggle-btn{
@@ -1687,6 +1790,15 @@ let playersSort = {key:null, dir:1};
 let playersTeamFilter = "all";
 
 function escapeAttr(s){ return String(s).replace(/"/g,"&quot;"); }
+// Full HTML escaping (&, <, >, ", ') — used for any user-submitted text that
+// gets inserted as element content or an attribute value, e.g. highlight
+// titles/links anyone on the site can add, so a pasted "<script>" or the
+// like just renders as inert text instead of running.
+function escapeHtml(s){
+  return String(s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
 
 // Repopulates the team-filter dropdown for whichever season is selected.
 // If the previously-chosen team isn't on the roster this season, falls back
@@ -1909,13 +2021,24 @@ function attributesGroups(){
 // it can stay pinned alongside the name column — see the sticky CSS for
 // #attributesTable, which pins the first *two* columns for this table.
 const ATTR_TEAM_COL = {key:"team", label:"Team", render:p=> teamTag(p.team)};
+// Shared OVR + OVR# columns for every page. OVR# is context-aware: it shows
+// the batting-only overall while viewing the Hitters table and the
+// pitching-only overall while viewing the Pitchers table, so a two-way
+// player shows the number relevant to *that* table instead of one blended
+// figure (or two separate BAT/PIT columns). cellClass gives both a bit of
+// left breathing room + center alignment so they don't sit flush against
+// the sticky Name/Team columns right next to them.
+const ATTR_OVR_COL = {key:"ovr", label:"OVR", cellClass:"attr-ovr-cell",
+  sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)};
+const ATTR_OVRNUM_COL = {key:"ovrNum", label:"OVR#", cellClass:"attr-ovr-cell",
+  sortVal:p=>overallNumber(p, currentAttrView==="pitchers")??-1,
+  render:p=>{ const n=overallNumber(p, currentAttrView==="pitchers"); return n===null ? "&ndash;" : n; }};
 const ATTR_PAGES = [
   { title:"Bio", cols:[
     {key:"name", label:"Name"},
     ATTR_TEAM_COL,
-    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
-    {key:"ovrNum", label:"OVR#", sortVal:p=>overallNumber(p)??-1,
-      render:p=>{ const n=overallNumber(p); return n===null ? "&ndash;" : n; }},
+    ATTR_OVR_COL,
+    ATTR_OVRNUM_COL,
     {key:"pos", label:"P. Pos"},
     {key:"pos2", label:"S. Pos", cellClass:"pos2-cell",
       sortVal:p=> (p.pos2 && p.pos2!=="--") ? p.pos2 : "",
@@ -1927,9 +2050,8 @@ const ATTR_PAGES = [
   { title:"Ratings", cols:[
     {key:"name", label:"Name"},
     ATTR_TEAM_COL,
-    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
-    {key:"ovrNum", label:"OVR#", sortVal:p=>overallNumber(p)??-1,
-      render:p=>{ const n=overallNumber(p); return n===null ? "&ndash;" : n; }},
+    ATTR_OVR_COL,
+    ATTR_OVRNUM_COL,
     {key:"pow", label:"POW", render:p=>ratingCell(p.pow)},
     {key:"con", label:"CON", render:p=>ratingCell(p.con)},
     {key:"spd", label:"SPD", render:p=>ratingCell(p.spd)},
@@ -1939,11 +2061,8 @@ const ATTR_PAGES = [
   { title:"Pitching", cols:[
     {key:"name", label:"Name"},
     ATTR_TEAM_COL,
-    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
-    {key:"batOvrNum", label:"BAT OVR#", sortVal:p=>overallNumber(p,false)??-1,
-      render:p=>{ const n=overallNumber(p,false); return n===null ? "&ndash;" : n; }},
-    {key:"pitOvrNum", label:"PIT OVR#", sortVal:p=>overallNumber(p,true)??-1,
-      render:p=>{ const n=overallNumber(p,true); return n===null ? "&ndash;" : n; }},
+    ATTR_OVR_COL,
+    ATTR_OVRNUM_COL,
     {key:"vel", label:"VEL", render:p=>ratingCell(p.vel)},
     {key:"jnk", label:"JNK", render:p=>ratingCell(p.jnk)},
     {key:"acc", label:"ACC", render:p=>ratingCell(p.acc)},
@@ -1952,9 +2071,8 @@ const ATTR_PAGES = [
   { title:"Chemistry", cols:[
     {key:"name", label:"Name"},
     ATTR_TEAM_COL,
-    {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
-    {key:"ovrNum", label:"OVR#", sortVal:p=>overallNumber(p)??-1,
-      render:p=>{ const n=overallNumber(p); return n===null ? "&ndash;" : n; }},
+    ATTR_OVR_COL,
+    ATTR_OVRNUM_COL,
     {key:"chem", label:"Chem", render:p=>chemBadge(p.chem)},
     {key:"trait1", label:"Trait 1", render:p=>traitPill(p.trait1, p.trait1Tier)},
     {key:"trait2", label:"Trait 2", render:p=>traitPill(p.trait2, p.trait2Tier)},
@@ -2443,6 +2561,130 @@ function applyPlayerPhotos(root){
   });
 }
 
+/* ---------- player highlights (fan-submitted video links, stored in shared
+   key/value storage) ----------
+   Anyone viewing a player's profile can paste in a video link (YouTube,
+   Twitch clip, Streamable, etc.) to add it to that player's highlight reel
+   — there's no admin gate on adding, only on removing a bad/spam entry.
+   Actual video files aren't uploaded/hosted here (the storage backend is a
+   small JSON key/value store, not a media host) — this stores links and
+   embeds them where possible, same as pasting a link into a chat. */
+
+function highlightsKey(name){
+  return "highlights_" + String(name).replace(/[^a-zA-Z0-9]+/g,"_").slice(0,150);
+}
+
+async function loadPlayerHighlights(name){
+  if(!window.storage) return [];
+  try{
+    const res = await window.storage.get(highlightsKey(name), true);
+    const parsed = res && res.value ? JSON.parse(res.value) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  }catch(e){
+    return []; // no highlights saved for this player yet
+  }
+}
+
+async function savePlayerHighlights(name, list){
+  if(!window.storage) throw new Error("Storage isn't available here.");
+  await window.storage.set(highlightsKey(name), JSON.stringify(list), true);
+}
+
+// Recognizes YouTube and Streamable links (the common cases) and returns an
+// embeddable iframe src for them; everything else just renders as a plain
+// link card instead of an embed.
+function highlightEmbedSrc(url){
+  try{
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./,"");
+    if(host==="youtu.be"){
+      const id = u.pathname.slice(1);
+      return id ? `https://www.youtube.com/embed/${id}` : null;
+    }
+    if(host==="youtube.com" || host==="m.youtube.com"){
+      const id = u.searchParams.get("v");
+      if(id) return `https://www.youtube.com/embed/${id}`;
+      if(u.pathname.startsWith("/shorts/")) return `https://www.youtube.com/embed/${u.pathname.split("/")[2]}`;
+      return null;
+    }
+    if(host==="streamable.com"){
+      const id = u.pathname.slice(1);
+      return id ? `https://streamable.com/e/${id}` : null;
+    }
+    return null;
+  }catch(e){
+    return null; // not a valid URL
+  }
+}
+
+function highlightCardHtml(h, idx){
+  const embedSrc = highlightEmbedSrc(h.url);
+  const embed = embedSrc
+    ? `<div class="highlight-card-embed"><iframe src="${escapeAttr(embedSrc)}" allowfullscreen loading="lazy"></iframe></div>`
+    : "";
+  const title = h.title ? h.title : "Highlight";
+  const removeBtn = isAdmin ? `<button class="highlight-card-remove" data-remove-highlight="${idx}">Remove</button>` : "";
+  return `<div class="highlight-card">
+    ${embed}
+    <div class="highlight-card-title">${escapeHtml(title)}</div>
+    <a class="highlight-card-link" href="${escapeAttr(h.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(h.url)}</a>
+    ${removeBtn}
+  </div>`;
+}
+
+async function renderPlayerHighlights(name){
+  const listEl = document.getElementById("highlightsList");
+  if(!listEl) return;
+  const list = await loadPlayerHighlights(name);
+  if(overlayPlayerName !== name) return; // overlay moved on to another player
+  if(!list.length){
+    listEl.innerHTML = `<div class="no-data-note">No highlights uploaded yet — be the first to add one.</div>`;
+    return;
+  }
+  listEl.innerHTML = list.map((h,i)=>highlightCardHtml(h,i)).join("");
+}
+
+document.getElementById("playerBody").addEventListener("click", async e=>{
+  const removeBtn = e.target.closest("[data-remove-highlight]");
+  if(removeBtn){
+    if(!isAdmin || !overlayPlayerName) return;
+    const name = overlayPlayerName;
+    const idx = Number(removeBtn.dataset.removeHighlight);
+    const list = await loadPlayerHighlights(name);
+    list.splice(idx, 1);
+    await savePlayerHighlights(name, list);
+    if(overlayPlayerName===name) renderPlayerHighlights(name);
+    return;
+  }
+  if(e.target.id==="highlightAddBtn"){
+    const name = overlayPlayerName;
+    if(!name) return;
+    const urlInput = document.getElementById("highlightUrlInput");
+    const titleInput = document.getElementById("highlightTitleInput");
+    const statusEl = document.getElementById("highlightStatus");
+    const url = urlInput.value.trim();
+    const title = titleInput.value.trim();
+    if(!url){ setStatus(statusEl, "Paste a video link first.", true); return; }
+    let parsedUrl;
+    try{ parsedUrl = new URL(url); }catch(e){ setStatus(statusEl, "That doesn't look like a valid link.", true); return; }
+    if(parsedUrl.protocol!=="http:" && parsedUrl.protocol!=="https:"){
+      setStatus(statusEl, "Links must start with http:// or https://", true); return;
+    }
+    e.target.disabled = true;
+    try{
+      const list = await loadPlayerHighlights(name);
+      list.unshift({ url, title, addedAt: new Date().toISOString() });
+      await savePlayerHighlights(name, list);
+      urlInput.value = ""; titleInput.value = "";
+      setStatus(statusEl, "Highlight added.", false);
+      if(overlayPlayerName===name) renderPlayerHighlights(name);
+    }catch(err){
+      setStatus(statusEl, err.message || "Couldn't save that highlight.", true);
+    }
+    e.target.disabled = false;
+  }
+});
+
 /* ---------- team logos (stored in shared key/value storage, same pattern
    as player photos above, but keyed by team id — logos don't change season
    to season the way rosters do) ---------- */
@@ -2558,7 +2800,21 @@ function openPlayerPage(name){
 
   let html = "";
 
-  html += playerAttributesCardHtml(getPlayerLatestAttributes(name));
+  html += `<div class="profile-top-row">
+    <div class="profile-col-attrs">${playerAttributesCardHtml(getPlayerLatestAttributes(name))}</div>
+    <div class="profile-col-highlights">
+      <h3 class="sub-title">Highlights</h3>
+      <div class="highlights-add">
+        <input type="text" id="highlightUrlInput" placeholder="Paste a video link (YouTube, Streamable, etc.)">
+        <input type="text" id="highlightTitleInput" placeholder="Title (optional)">
+        <button class="highlight-add-btn" id="highlightAddBtn">Add Highlight</button>
+        <div class="import-status" id="highlightStatus"></div>
+      </div>
+      <div class="highlights-list" id="highlightsList">
+        <div class="no-data-note">Loading highlights&hellip;</div>
+      </div>
+    </div>
+  </div>`;
 
   const championships = getPlayerChampionships(name);
   if(championships.length){
@@ -2646,6 +2902,7 @@ function openPlayerPage(name){
 
   document.getElementById("playerBody").innerHTML = html;
   document.getElementById("playerOverlay").classList.add("open");
+  renderPlayerHighlights(name);
 }
 
 function closePlayerPage(){
