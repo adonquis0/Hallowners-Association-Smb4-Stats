@@ -1224,8 +1224,6 @@
   </div>
 </div>
 
-<footer>Showing sample data until it's updated &mdash; edit the DATA block directly, or use the admin link for this page to update team records, player photos, and stats.</footer>
-
 <script>
 /* =========================================================================
    DATA — everything below is placeholder/sample data built around your
@@ -1821,13 +1819,14 @@ function ovrBadge(letter, num){
 // relevant to the player's role — batting ratings for position players,
 // pitching + fielding for pitchers — rather than every field on the sheet,
 // since batting ratings for a pure pitcher aren't meaningful to their
-// overall. Two-way players get a "complete" overall instead, weighting
-// every rating field evenly since both halves of their game are relevant.
-// Falls back to null (no number shown) if nothing to average.
-// For single-role players shown out of context, pass `forcePitcher`
-// explicitly (true/false) so the number matches whichever table it's being
-// shown on — see the ATTR_PAGES column defs, which pass
-// currentAttrView==="pitchers".
+// overall. Falls back to null (no number shown) if nothing to average.
+// When `forcePitcher` isn't passed, two-way players get a blended
+// "complete" overall, weighting every rating field evenly since both
+// halves of their game are relevant. Passing `forcePitcher` explicitly
+// (true/false) always overrides that blend and returns the batting-only
+// or pitching-only number instead — this is how the Pitching page shows
+// a two-way player's batting and pitching overalls as two separate
+// figures rather than one blended one — see the ATTR_PAGES column defs.
 //
 // "Two-way" here means the player actually carries the in-game Two Way (IF)
 // or Two Way (OF) trait — NOT just "appears in both the batting and
@@ -1840,7 +1839,7 @@ function isTwoWayPlayer(p){
 }
 function overallNumber(p, forcePitcher){
   let weights;
-  if(isTwoWayPlayer(p)){
+  if(forcePitcher===undefined && isTwoWayPlayer(p)){
     weights = { pow:1, con:1, spd:1, fld:1, vel:1, acc:1, jnk:1 };
   } else {
     const isPitcher = forcePitcher !== undefined
@@ -1883,18 +1882,20 @@ function arsenalCell(list){
 // appear in this season's batting or pitching stat arrays.
 const PITCHER_POS_RE = /SP|RP|CP/;
 
-// Two-way players (rostered as both a batter and a pitcher this season) show
-// up on both the Hitters and Pitchers tables — membership is driven by the
-// player's attributes "pos" field (their actual roster position), not by
-// whether they happen to have an entry in this season's pitching stats, so
-// someone who hasn't pitched (or hasn't pitched yet) still shows up on the
-// right table.
+// Membership is driven by the player's attributes "pos" field (their actual
+// roster position) rather than whether they happen to have an entry in this
+// season's pitching stats, so someone who hasn't pitched (or hasn't pitched
+// yet) still shows up on the right table. Players whose primary position is
+// a pitching slot (SP/RP/CP) go on the Pitchers table — but a two-way
+// player carrying the Two Way trait also shows up on the Hitters table
+// alongside them, since they're rostered to hit too.
 function attributesGroups(){
   const rows = attributesArr();
   const hitters = [], pitchers = [];
   rows.forEach(p=>{
-    if(PITCHER_POS_RE.test(p.pos||"")) pitchers.push(p);
-    else hitters.push(p);
+    const isPitcherPos = PITCHER_POS_RE.test(p.pos||"");
+    if(isPitcherPos) pitchers.push(p);
+    if(!isPitcherPos || isTwoWayPlayer(p)) hitters.push(p);
   });
   hitters.sort((a,b)=> tierRank(b.ovr)-tierRank(a.ovr));
   pitchers.sort((a,b)=> tierRank(b.ovr)-tierRank(a.ovr));
@@ -1939,8 +1940,10 @@ const ATTR_PAGES = [
     {key:"name", label:"Name"},
     ATTR_TEAM_COL,
     {key:"ovr", label:"OVR", sortVal:p=>tierRank(p.ovr), render:p=>ovrBadge(p.ovr)},
-    {key:"ovrNum", label:"OVR#", sortVal:p=>overallNumber(p)??-1,
-      render:p=>{ const n=overallNumber(p); return n===null ? "&ndash;" : n; }},
+    {key:"batOvrNum", label:"BAT OVR#", sortVal:p=>overallNumber(p,false)??-1,
+      render:p=>{ const n=overallNumber(p,false); return n===null ? "&ndash;" : n; }},
+    {key:"pitOvrNum", label:"PIT OVR#", sortVal:p=>overallNumber(p,true)??-1,
+      render:p=>{ const n=overallNumber(p,true); return n===null ? "&ndash;" : n; }},
     {key:"vel", label:"VEL", render:p=>ratingCell(p.vel)},
     {key:"jnk", label:"JNK", render:p=>ratingCell(p.jnk)},
     {key:"acc", label:"ACC", render:p=>ratingCell(p.acc)},
