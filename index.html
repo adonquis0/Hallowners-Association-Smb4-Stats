@@ -846,12 +846,43 @@
   .highlights-add{
     display:flex;
     flex-direction:column;
-    gap:8px;
+    gap:10px;
     background:var(--navy-700);
     border:1px solid var(--hairline);
     padding:12px 14px;
     margin-bottom:14px;
   }
+  .highlights-add-group{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .highlights-add-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    color:var(--cream-dim);
+  }
+  .highlights-add-divider{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    color:var(--cream-dim);
+    text-align:center;
+    position:relative;
+    margin:2px 0;
+  }
+  .highlights-add-divider::before, .highlights-add-divider::after{
+    content:"";
+    position:absolute;
+    top:50%;
+    width:calc(50% - 20px);
+    border-top:1px solid var(--hairline);
+  }
+  .highlights-add-divider::before{left:0;}
+  .highlights-add-divider::after{right:0;}
   .highlights-add input[type="text"]{
     font-family:'Inter',sans-serif;
     font-size:13px;
@@ -861,6 +892,11 @@
     padding:8px 10px;
   }
   .highlights-add input[type="text"]:focus{outline:none; border-color:var(--gold);}
+  .highlights-add input[type="file"]{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--cream-dim);
+  }
   .highlight-add-btn{
     font-family:'IBM Plex Mono',monospace;
     font-size:11px;
@@ -891,6 +927,9 @@
   }
   .highlight-card-embed iframe{
     position:absolute; inset:0; width:100%; height:100%; border:0;
+  }
+  .highlight-card-embed video{
+    position:absolute; inset:0; width:100%; height:100%; background:#000;
   }
   .highlight-card-title{
     font-family:'Anton',sans-serif;
@@ -1355,6 +1394,27 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+
+/* =========================================================================
+   CLOUDINARY SETUP — used only for the player Highlights feature, so people
+   can upload an actual video file from their computer (Firebase Storage
+   needs the paid Blaze plan; Cloudinary's free tier doesn't).
+
+   To turn this on:
+   1. Sign up free at https://cloudinary.com (no credit card needed).
+   2. Your "Cloud name" is shown right on the dashboard home page — put it
+      below as CLOUDINARY_CLOUD_NAME.
+   3. Go to Settings (gear icon) > Upload > Upload presets > Add upload
+      preset. Set "Signing Mode" to Unsigned, save, and copy its name below
+      as CLOUDINARY_UPLOAD_PRESET. (Unsigned = safe to expose in page
+      source, same as the Firebase config above — it only allows uploads,
+      not deletes or account access.)
+   Until both are filled in, the file-upload option is hidden and pasting a
+   video link (YouTube/Streamable/etc.) still works as before.
+   ========================================================================= */
+const CLOUDINARY_CLOUD_NAME = "qzl4sswl";   // e.g. "dxy1abcde"
+const CLOUDINARY_UPLOAD_PRESET = "HASmb4"; // e.g. "highlights_unsigned"
+const cloudinaryConfigured = !!(CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET);
 
 // Shim that mimics the artifact-preview window.storage API (get/set/delete)
 // but persists to Firestore instead, so the rest of the app's storage calls
@@ -2561,14 +2621,15 @@ function applyPlayerPhotos(root){
   });
 }
 
-/* ---------- player highlights (fan-submitted video links, stored in shared
+/* ---------- player highlights (fan-submitted video, stored in shared
    key/value storage) ----------
-   Anyone viewing a player's profile can paste in a video link (YouTube,
-   Twitch clip, Streamable, etc.) to add it to that player's highlight reel
-   — there's no admin gate on adding, only on removing a bad/spam entry.
-   Actual video files aren't uploaded/hosted here (the storage backend is a
-   small JSON key/value store, not a media host) — this stores links and
-   embeds them where possible, same as pasting a link into a chat. */
+   Anyone viewing a player's profile can either paste a video link (YouTube,
+   Streamable, etc.) or — if CLOUDINARY_CLOUD_NAME/CLOUDINARY_UPLOAD_PRESET
+   are filled in above — upload an actual video file from their computer.
+   Uploaded files go straight from the browser to Cloudinary (free tier);
+   only the resulting URL gets saved here, since this storage backend is a
+   small JSON key/value store, not a media host itself. There's no admin
+   gate on adding either kind, only on removing a bad/spam entry. */
 
 function highlightsKey(name){
   return "highlights_" + String(name).replace(/[^a-zA-Z0-9]+/g,"_").slice(0,150);
@@ -2591,8 +2652,9 @@ async function savePlayerHighlights(name, list){
 }
 
 // Recognizes YouTube and Streamable links (the common cases) and returns an
-// embeddable iframe src for them; everything else just renders as a plain
-// link card instead of an embed.
+// embeddable iframe src for them; everything else falls through to
+// isDirectVideoUrl() below, which handles actual video files (e.g. ones
+// uploaded to Cloudinary).
 function highlightEmbedSrc(url){
   try{
     const u = new URL(url);
@@ -2617,11 +2679,33 @@ function highlightEmbedSrc(url){
   }
 }
 
+// True for links to an actual video file rather than a page that hosts one
+// — a Cloudinary-hosted upload, or any URL ending in a common video
+// extension. These get a real <video controls> player instead of an
+// iframe.
+function isDirectVideoUrl(url){
+  try{
+    const u = new URL(url);
+    if(u.hostname.replace(/^www\./,"")==="res.cloudinary.com") return true;
+    return /\.(mp4|webm|mov|m4v|ogv)$/i.test(u.pathname);
+  }catch(e){
+    return false;
+  }
+}
+
+function highlightMediaHtml(url){
+  const embedSrc = highlightEmbedSrc(url);
+  if(embedSrc){
+    return `<div class="highlight-card-embed"><iframe src="${escapeAttr(embedSrc)}" allowfullscreen loading="lazy"></iframe></div>`;
+  }
+  if(isDirectVideoUrl(url)){
+    return `<div class="highlight-card-embed"><video controls preload="metadata" src="${escapeAttr(url)}"></video></div>`;
+  }
+  return "";
+}
+
 function highlightCardHtml(h, idx){
-  const embedSrc = highlightEmbedSrc(h.url);
-  const embed = embedSrc
-    ? `<div class="highlight-card-embed"><iframe src="${escapeAttr(embedSrc)}" allowfullscreen loading="lazy"></iframe></div>`
-    : "";
+  const embed = highlightMediaHtml(h.url);
   const title = h.title ? h.title : "Highlight";
   const removeBtn = isAdmin ? `<button class="highlight-card-remove" data-remove-highlight="${idx}">Remove</button>` : "";
   return `<div class="highlight-card">
@@ -2630,6 +2714,39 @@ function highlightCardHtml(h, idx){
     <a class="highlight-card-link" href="${escapeAttr(h.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(h.url)}</a>
     ${removeBtn}
   </div>`;
+}
+
+// Uploads a video file straight from the browser to Cloudinary using an
+// unsigned upload preset (see CLOUDINARY_* config above). onProgress is
+// called with 0-100 as the upload proceeds; resolves with the file's
+// public playback URL.
+function uploadToCloudinary(file, onProgress){
+  return new Promise((resolve, reject)=>{
+    const endpoint = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`;
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", endpoint);
+    xhr.upload.onprogress = e=>{
+      if(e.lengthComputable && onProgress) onProgress(Math.round((e.loaded/e.total)*100));
+    };
+    xhr.onload = ()=>{
+      if(xhr.status>=200 && xhr.status<300){
+        try{
+          const data = JSON.parse(xhr.responseText);
+          if(data.secure_url) resolve(data.secure_url);
+          else reject(new Error("Cloudinary didn't return a video URL."));
+        }catch(e){
+          reject(new Error("Unexpected response from Cloudinary."));
+        }
+      } else {
+        reject(new Error(`Upload failed (${xhr.status}). Check your Cloudinary cloud name and upload preset.`));
+      }
+    };
+    xhr.onerror = ()=> reject(new Error("Upload failed — network error."));
+    xhr.send(formData);
+  });
 }
 
 async function renderPlayerHighlights(name){
@@ -2680,6 +2797,31 @@ document.getElementById("playerBody").addEventListener("click", async e=>{
       if(overlayPlayerName===name) renderPlayerHighlights(name);
     }catch(err){
       setStatus(statusEl, err.message || "Couldn't save that highlight.", true);
+    }
+    e.target.disabled = false;
+  }
+  if(e.target.id==="highlightUploadBtn"){
+    const name = overlayPlayerName;
+    if(!name) return;
+    const fileInput = document.getElementById("highlightFileInput");
+    const titleInput = document.getElementById("highlightFileTitleInput");
+    const statusEl = document.getElementById("highlightStatus");
+    const file = fileInput.files[0];
+    const title = titleInput.value.trim();
+    if(!file){ setStatus(statusEl, "Choose a video file first.", true); return; }
+    if(!file.type.startsWith("video/")){ setStatus(statusEl, "That doesn't look like a video file.", true); return; }
+    e.target.disabled = true;
+    try{
+      setStatus(statusEl, "Uploading… 0%", false);
+      const secureUrl = await uploadToCloudinary(file, pct=> setStatus(statusEl, `Uploading… ${pct}%`, false));
+      const list = await loadPlayerHighlights(name);
+      list.unshift({ url: secureUrl, title, addedAt: new Date().toISOString() });
+      await savePlayerHighlights(name, list);
+      fileInput.value = ""; titleInput.value = "";
+      setStatus(statusEl, "Highlight uploaded.", false);
+      if(overlayPlayerName===name) renderPlayerHighlights(name);
+    }catch(err){
+      setStatus(statusEl, err.message || "Couldn't upload that video.", true);
     }
     e.target.disabled = false;
   }
@@ -2805,9 +2947,20 @@ function openPlayerPage(name){
     <div class="profile-col-highlights">
       <h3 class="sub-title">Highlights</h3>
       <div class="highlights-add">
-        <input type="text" id="highlightUrlInput" placeholder="Paste a video link (YouTube, Streamable, etc.)">
-        <input type="text" id="highlightTitleInput" placeholder="Title (optional)">
-        <button class="highlight-add-btn" id="highlightAddBtn">Add Highlight</button>
+        <div class="highlights-add-group">
+          <div class="highlights-add-label">Paste a video link</div>
+          <input type="text" id="highlightUrlInput" placeholder="YouTube, Streamable, etc.">
+          <input type="text" id="highlightTitleInput" placeholder="Title (optional)">
+          <button class="highlight-add-btn" id="highlightAddBtn">Add Highlight</button>
+        </div>
+        ${cloudinaryConfigured ? `
+        <div class="highlights-add-divider">or</div>
+        <div class="highlights-add-group">
+          <div class="highlights-add-label">Upload a video file</div>
+          <input type="file" accept="video/*" id="highlightFileInput">
+          <input type="text" id="highlightFileTitleInput" placeholder="Title (optional)">
+          <button class="highlight-add-btn" id="highlightUploadBtn">Upload Highlight</button>
+        </div>` : ``}
         <div class="import-status" id="highlightStatus"></div>
       </div>
       <div class="highlights-list" id="highlightsList">
