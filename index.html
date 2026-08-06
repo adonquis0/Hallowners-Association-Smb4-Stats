@@ -843,6 +843,27 @@
   .profile-col-highlights .sub-title{margin-top:0;}
 
   /* ---------- highlights (fan-submitted video links) ---------- */
+  .highlights-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .highlights-header .sub-title{margin-bottom:10px;}
+  .highlight-toggle-add-btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    background:transparent;
+    color:var(--gold);
+    border:1px solid var(--gold);
+    padding:6px 10px;
+    cursor:pointer;
+    height:fit-content;
+    margin-top:-4px;
+  }
+  .highlight-toggle-add-btn:hover{background:var(--gold); color:var(--navy-950);}
   .highlights-add{
     display:flex;
     flex-direction:column;
@@ -892,10 +913,30 @@
     padding:8px 10px;
   }
   .highlights-add input[type="text"]:focus{outline:none; border-color:var(--gold);}
-  .highlights-add input[type="file"]{
+  .highlight-choose-video-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .highlight-choose-video-btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    background:var(--navy-950);
+    border:1px solid var(--hairline);
+    color:var(--cream-dim);
+    padding:8px 10px;
+    cursor:pointer;
+    display:inline-block;
+  }
+  .highlight-choose-video-btn:hover{color:var(--cream); border-color:var(--gold);}
+  .highlight-file-name{
     font-family:'IBM Plex Mono',monospace;
     font-size:11px;
     color:var(--cream-dim);
+    word-break:break-all;
   }
   .highlight-add-btn{
     font-family:'IBM Plex Mono',monospace;
@@ -910,6 +951,19 @@
   }
   .highlight-add-btn:hover{background:var(--gold-dim); border-color:var(--gold-dim);}
   .highlight-add-btn:disabled{opacity:0.5; cursor:default;}
+  .highlight-pager{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    margin-bottom:10px;
+  }
+  .highlight-pager-count{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:1px;
+    color:var(--cream-dim);
+  }
   .highlights-list{display:flex; flex-direction:column; gap:12px;}
   .highlight-card{
     background:var(--navy-700);
@@ -960,6 +1014,31 @@
     margin-top:8px;
   }
   .highlight-card-remove:hover{background:var(--crimson); color:var(--cream);}
+
+  /* ---------- highlight of the day page ---------- */
+  .highlight-of-day-card{
+    max-width:520px;
+    margin:0 auto;
+    background:var(--navy-700);
+    border:1px solid var(--hairline);
+    border-top:2px solid var(--gold);
+    padding:14px 16px 16px;
+  }
+  .highlight-of-day-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:2px;
+    color:var(--gold);
+    text-transform:uppercase;
+    margin-bottom:8px;
+  }
+  .highlight-of-day-player{
+    margin-top:10px;
+    font-family:'Anton',sans-serif;
+    font-size:15px;
+    text-transform:uppercase;
+    letter-spacing:0.3px;
+  }
 
   .toggle-row{display:flex; gap:8px; margin-bottom:16px;}
   .toggle-btn{
@@ -1077,6 +1156,7 @@
     <div class="league-name">HALLOWNERS <span>ASSOCIATION</span></div>
     <div class="marquee-controls">
       <select class="season-select" id="seasonSelect"></select>
+      <button class="season-select" id="adminPreviewToggleBtn" style="display:none; background:transparent; color:var(--gold); border-color:var(--gold);">View as Visitor</button>
       <button class="season-select" id="adminSignInBtn" style="background:transparent; color:var(--gold); border-color:var(--gold);">Admin</button>
     </div>
   </div>
@@ -1090,6 +1170,7 @@
   <button class="tab-btn" data-tab="boxscores">Box Scores</button>
   <button class="tab-btn" data-tab="records">Records</button>
   <button class="tab-btn" data-tab="history">History &amp; Awards</button>
+  <button class="tab-btn" data-tab="highlight-of-day">Highlight of the Day</button>
   <button class="tab-btn" data-tab="import" id="adminTabBtn">Admin</button>
 </nav>
 
@@ -1184,6 +1265,15 @@
     <h3 class="sub-title">Awards</h3>
     <div class="awards-grid" id="awardsGrid"></div>
   </section>
+
+  <section class="panel" id="panel-highlight-of-day">
+    <h2 class="section-title">Highlight of the Day</h2>
+    <p style="color:var(--cream-dim); font-size:13px; margin-top:-8px;">One random fan-submitted highlight, picked fresh every day.</p>
+    <div id="highlightOfDayWrap">
+      <div class="no-data-note">Loading today's highlight&hellip;</div>
+    </div>
+  </section>
+
   <section class="panel" id="panel-import">
     <h2 class="section-title">Admin</h2>
     <p style="color:var(--cream-dim); font-size:13px; margin-top:-8px;">
@@ -1439,10 +1529,21 @@ window.storage = {
 // Create your one admin user in Firebase console under Authentication >
 // Users, then sign in with the Admin button in the header.
 let isAdmin = false;
+// When actually signed in as admin, this lets you flip to the regular
+// visitor view with one click (no sign-out required) to see the site the
+// way everyone else does, then flip straight back. It never grants admin
+// access on its own — effectiveAdmin() is only ever true if isAdmin
+// (the real Firebase Auth state) is true.
+let previewAsVisitor = false;
+function effectiveAdmin(){ return isAdmin && !previewAsVisitor; }
+
 function setAdminUiVisible(on){
   document.getElementById("adminTabBtn").style.display = on ? "" : "none";
   document.getElementById("panel-import").style.display = on ? "" : "none";
-  document.getElementById("adminSignInBtn").textContent = on ? "Sign Out" : "Admin";
+  document.getElementById("adminSignInBtn").textContent = isAdmin ? "Sign Out" : "Admin";
+  const previewBtn = document.getElementById("adminPreviewToggleBtn");
+  previewBtn.style.display = isAdmin ? "" : "none";
+  previewBtn.textContent = previewAsVisitor ? "Back to Admin" : "View as Visitor";
   const wrap = document.getElementById("overlayPhotoEditWrap");
   if(wrap) wrap.style.display = (on && overlayPlayerName) ? "block" : "none";
   if(!on){
@@ -1454,7 +1555,8 @@ function setAdminUiVisible(on){
 }
 firebase.auth().onAuthStateChanged(user=>{
   isAdmin = !!user;
-  setAdminUiVisible(isAdmin);
+  previewAsVisitor = false;
+  setAdminUiVisible(effectiveAdmin());
   renderAll();
 });
 
@@ -2707,7 +2809,7 @@ function highlightMediaHtml(url){
 function highlightCardHtml(h, idx){
   const embed = highlightMediaHtml(h.url);
   const title = h.title ? h.title : "Highlight";
-  const removeBtn = isAdmin ? `<button class="highlight-card-remove" data-remove-highlight="${idx}">Remove</button>` : "";
+  const removeBtn = effectiveAdmin() ? `<button class="highlight-card-remove" data-remove-highlight="${idx}">Remove</button>` : "";
   return `<div class="highlight-card">
     ${embed}
     <div class="highlight-card-title">${escapeHtml(title)}</div>
@@ -2751,25 +2853,50 @@ function uploadToCloudinary(file, onProgress){
 
 async function renderPlayerHighlights(name){
   const listEl = document.getElementById("highlightsList");
+  const navEl = document.getElementById("highlightPagerNav");
+  const countEl = document.getElementById("highlightPagerCount");
   if(!listEl) return;
   const list = await loadPlayerHighlights(name);
   if(overlayPlayerName !== name) return; // overlay moved on to another player
+  currentHighlightsList = list;
   if(!list.length){
     listEl.innerHTML = `<div class="no-data-note">No highlights uploaded yet — be the first to add one.</div>`;
+    if(navEl) navEl.style.display = "none";
     return;
   }
-  listEl.innerHTML = list.map((h,i)=>highlightCardHtml(h,i)).join("");
+  if(highlightViewIndex >= list.length) highlightViewIndex = 0;
+  if(navEl) navEl.style.display = list.length > 1 ? "flex" : "none";
+  if(countEl) countEl.textContent = `${highlightViewIndex+1} / ${list.length}`;
+  listEl.innerHTML = highlightCardHtml(list[highlightViewIndex], highlightViewIndex);
 }
 
 document.getElementById("playerBody").addEventListener("click", async e=>{
+  if(e.target.id==="highlightToggleAddBtn"){
+    const panel = document.getElementById("highlightsAddPanel");
+    if(panel) panel.style.display = (panel.style.display==="none") ? "flex" : "none";
+    return;
+  }
+  if(e.target.closest("#highlightPrevBtn")){
+    if(!currentHighlightsList.length) return;
+    highlightViewIndex = (highlightViewIndex - 1 + currentHighlightsList.length) % currentHighlightsList.length;
+    renderPlayerHighlights(overlayPlayerName);
+    return;
+  }
+  if(e.target.closest("#highlightNextBtn")){
+    if(!currentHighlightsList.length) return;
+    highlightViewIndex = (highlightViewIndex + 1) % currentHighlightsList.length;
+    renderPlayerHighlights(overlayPlayerName);
+    return;
+  }
   const removeBtn = e.target.closest("[data-remove-highlight]");
   if(removeBtn){
-    if(!isAdmin || !overlayPlayerName) return;
+    if(!effectiveAdmin() || !overlayPlayerName) return;
     const name = overlayPlayerName;
     const idx = Number(removeBtn.dataset.removeHighlight);
     const list = await loadPlayerHighlights(name);
     list.splice(idx, 1);
     await savePlayerHighlights(name, list);
+    if(highlightViewIndex >= list.length) highlightViewIndex = Math.max(0, list.length-1);
     if(overlayPlayerName===name) renderPlayerHighlights(name);
     return;
   }
@@ -2778,10 +2905,37 @@ document.getElementById("playerBody").addEventListener("click", async e=>{
     if(!name) return;
     const urlInput = document.getElementById("highlightUrlInput");
     const titleInput = document.getElementById("highlightTitleInput");
+    const fileInput = document.getElementById("highlightFileInput");
     const statusEl = document.getElementById("highlightStatus");
     const url = urlInput.value.trim();
     const title = titleInput.value.trim();
-    if(!url){ setStatus(statusEl, "Paste a video link first.", true); return; }
+    const file = fileInput && fileInput.files[0];
+
+    // A chosen file takes priority over a pasted link, since picking one
+    // usually means the person changed their mind about which to use.
+    if(file){
+      if(!file.type.startsWith("video/")){ setStatus(statusEl, "That doesn't look like a video file.", true); return; }
+      e.target.disabled = true;
+      try{
+        setStatus(statusEl, "Uploading… 0%", false);
+        const secureUrl = await uploadToCloudinary(file, pct=> setStatus(statusEl, `Uploading… ${pct}%`, false));
+        const list = await loadPlayerHighlights(name);
+        list.unshift({ url: secureUrl, title, addedAt: new Date().toISOString() });
+        await savePlayerHighlights(name, list);
+        urlInput.value = ""; titleInput.value = ""; fileInput.value = "";
+        const fileNameEl = document.getElementById("highlightFileName");
+        if(fileNameEl) fileNameEl.textContent = "No file chosen";
+        highlightViewIndex = 0;
+        setStatus(statusEl, "Highlight uploaded.", false);
+        if(overlayPlayerName===name) renderPlayerHighlights(name);
+      }catch(err){
+        setStatus(statusEl, err.message || "Couldn't upload that video.", true);
+      }
+      e.target.disabled = false;
+      return;
+    }
+
+    if(!url){ setStatus(statusEl, "Paste a video link or choose a video file.", true); return; }
     let parsedUrl;
     try{ parsedUrl = new URL(url); }catch(e){ setStatus(statusEl, "That doesn't look like a valid link.", true); return; }
     if(parsedUrl.protocol!=="http:" && parsedUrl.protocol!=="https:"){
@@ -2793,6 +2947,7 @@ document.getElementById("playerBody").addEventListener("click", async e=>{
       list.unshift({ url, title, addedAt: new Date().toISOString() });
       await savePlayerHighlights(name, list);
       urlInput.value = ""; titleInput.value = "";
+      highlightViewIndex = 0;
       setStatus(statusEl, "Highlight added.", false);
       if(overlayPlayerName===name) renderPlayerHighlights(name);
     }catch(err){
@@ -2800,32 +2955,81 @@ document.getElementById("playerBody").addEventListener("click", async e=>{
     }
     e.target.disabled = false;
   }
-  if(e.target.id==="highlightUploadBtn"){
-    const name = overlayPlayerName;
-    if(!name) return;
-    const fileInput = document.getElementById("highlightFileInput");
-    const titleInput = document.getElementById("highlightFileTitleInput");
-    const statusEl = document.getElementById("highlightStatus");
-    const file = fileInput.files[0];
-    const title = titleInput.value.trim();
-    if(!file){ setStatus(statusEl, "Choose a video file first.", true); return; }
-    if(!file.type.startsWith("video/")){ setStatus(statusEl, "That doesn't look like a video file.", true); return; }
-    e.target.disabled = true;
-    try{
-      setStatus(statusEl, "Uploading… 0%", false);
-      const secureUrl = await uploadToCloudinary(file, pct=> setStatus(statusEl, `Uploading… ${pct}%`, false));
-      const list = await loadPlayerHighlights(name);
-      list.unshift({ url: secureUrl, title, addedAt: new Date().toISOString() });
-      await savePlayerHighlights(name, list);
-      fileInput.value = ""; titleInput.value = "";
-      setStatus(statusEl, "Highlight uploaded.", false);
-      if(overlayPlayerName===name) renderPlayerHighlights(name);
-    }catch(err){
-      setStatus(statusEl, err.message || "Couldn't upload that video.", true);
-    }
-    e.target.disabled = false;
+});
+
+document.getElementById("playerBody").addEventListener("change", e=>{
+  if(e.target.id==="highlightFileInput"){
+    const fileNameEl = document.getElementById("highlightFileName");
+    if(fileNameEl) fileNameEl.textContent = e.target.files[0] ? e.target.files[0].name : "No file chosen";
   }
 });
+
+/* ---------- highlight of the day (random pick, same for everyone all day,
+   changes at midnight local time) ---------- */
+
+// Every batter/pitcher name across every season, deduped — the pool of
+// players whose highlights are eligible to be picked.
+function allLeaguePlayerNames(){
+  const names = new Set();
+  SEASON_IDS.forEach(id=>{
+    (SEASONS[id].batters||[]).forEach(b=> names.add(b.name));
+    (SEASONS[id].pitchers||[]).forEach(p=> names.add(p.name));
+  });
+  return [...names];
+}
+
+// Deterministic 0..1 value from a string seed (today's date), so the pick
+// is stable for everyone viewing the page on the same day.
+function seededRandom(seedStr){
+  let h = 0;
+  for(let i=0;i<seedStr.length;i++){ h = (Math.imul(31,h) + seedStr.charCodeAt(i)) | 0; }
+  h = (h ^ (h>>>15)) >>> 0;
+  return (h % 100000) / 100000;
+}
+
+let highlightOfDayCache = { date:null, entry:null };
+
+async function renderHighlightOfDay(){
+  const wrap = document.getElementById("highlightOfDayWrap");
+  if(!wrap) return;
+  const todayKey = new Date().toISOString().slice(0,10);
+  if(highlightOfDayCache.date === todayKey){
+    paintHighlightOfDay(highlightOfDayCache.entry);
+    return;
+  }
+  wrap.innerHTML = `<div class="no-data-note">Loading today's highlight&hellip;</div>`;
+  const names = allLeaguePlayerNames();
+  const pool = [];
+  for(const name of names){
+    const list = await loadPlayerHighlights(name);
+    list.forEach(h=> pool.push({ name, h }));
+  }
+  const pick = pool.length ? pool[Math.floor(seededRandom(todayKey) * pool.length)] : null;
+  highlightOfDayCache = { date: todayKey, entry: pick };
+  paintHighlightOfDay(pick);
+}
+
+function paintHighlightOfDay(pick){
+  const wrap = document.getElementById("highlightOfDayWrap");
+  if(!wrap) return;
+  if(!pick){
+    wrap.innerHTML = `<div class="no-data-note">No highlights uploaded yet — check back once someone adds one.</div>`;
+    return;
+  }
+  const embed = highlightMediaHtml(pick.h.url);
+  const title = pick.h.title ? pick.h.title : "Highlight";
+  const { battingRows, pitchingRows } = getPlayerCareer(pick.name);
+  const latest = battingRows[battingRows.length-1] || pitchingRows[pitchingRows.length-1];
+  const teamBit = latest ? `${teamTag(latest.team)} ${escapeHtml(teamName(latest.team))}` : "";
+  wrap.innerHTML = `
+    <div class="highlight-of-day-card">
+      <div class="highlight-of-day-label">Today's Pick</div>
+      ${embed}
+      <div class="highlight-card-title">${escapeHtml(title)}</div>
+      <a class="highlight-card-link" href="${escapeAttr(pick.h.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(pick.h.url)}</a>
+      <div class="highlight-of-day-player">${teamBit} <a class="player-link" data-name="${escapeAttr(pick.name)}">${escapeHtml(pick.name)}</a></div>
+    </div>`;
+}
 
 /* ---------- team logos (stored in shared key/value storage, same pattern
    as player photos above, but keyed by team id — logos don't change season
@@ -2920,8 +3124,11 @@ function setAvatarPhoto(dataUrl){
 }
 
 let overlayPlayerName = null;
+let highlightViewIndex = 0;
+let currentHighlightsList = [];
 
 function openPlayerPage(name){
+  highlightViewIndex = 0;
   const { battingRows, pitchingRows } = getPlayerCareer(name);
   if(!battingRows.length && !pitchingRows.length) return;
   const latest = battingRows[battingRows.length-1] || pitchingRows[pitchingRows.length-1];
@@ -2938,30 +3145,42 @@ function openPlayerPage(name){
   loadPlayerPhoto(name).then(dataUrl=>{
     if(dataUrl && overlayPlayerName===name) setAvatarPhoto(dataUrl);
   });
-  document.getElementById("overlayPhotoEditWrap").style.display = isAdmin ? "block" : "none";
+  document.getElementById("overlayPhotoEditWrap").style.display = effectiveAdmin() ? "block" : "none";
 
   let html = "";
 
   html += `<div class="profile-top-row">
     <div class="profile-col-attrs">${playerAttributesCardHtml(getPlayerLatestAttributes(name))}</div>
     <div class="profile-col-highlights">
-      <h3 class="sub-title">Highlights</h3>
-      <div class="highlights-add">
+      <div class="highlights-header">
+        <h3 class="sub-title">Highlights</h3>
+        <button type="button" class="highlight-toggle-add-btn" id="highlightToggleAddBtn">+ Add</button>
+      </div>
+      <div class="highlights-add" id="highlightsAddPanel" style="display:none;">
         <div class="highlights-add-group">
-          <div class="highlights-add-label">Paste a video link</div>
-          <input type="text" id="highlightUrlInput" placeholder="YouTube, Streamable, etc.">
+          <div class="highlights-add-label">Title</div>
           <input type="text" id="highlightTitleInput" placeholder="Title (optional)">
-          <button class="highlight-add-btn" id="highlightAddBtn">Add Highlight</button>
+        </div>
+        <div class="highlights-add-group">
+          <div class="highlights-add-label">Video link</div>
+          <input type="text" id="highlightUrlInput" placeholder="YouTube, Streamable, etc.">
         </div>
         ${cloudinaryConfigured ? `
         <div class="highlights-add-divider">or</div>
         <div class="highlights-add-group">
-          <div class="highlights-add-label">Upload a video file</div>
-          <input type="file" accept="video/*" id="highlightFileInput">
-          <input type="text" id="highlightFileTitleInput" placeholder="Title (optional)">
-          <button class="highlight-add-btn" id="highlightUploadBtn">Upload Highlight</button>
+          <div class="highlight-choose-video-row">
+            <label class="highlight-choose-video-btn" for="highlightFileInput">Choose Video</label>
+            <span class="highlight-file-name" id="highlightFileName">No file chosen</span>
+          </div>
+          <input type="file" accept="video/*" id="highlightFileInput" style="position:absolute; width:1px; height:1px; opacity:0; overflow:hidden;">
         </div>` : ``}
+        <button class="highlight-add-btn" id="highlightAddBtn">Add Highlight</button>
         <div class="import-status" id="highlightStatus"></div>
+      </div>
+      <div class="highlight-pager" id="highlightPagerNav" style="display:none;">
+        <button class="attr-pager-arrow" id="highlightPrevBtn" aria-label="Previous highlight">&#9664;</button>
+        <div class="highlight-pager-count" id="highlightPagerCount"></div>
+        <button class="attr-pager-arrow" id="highlightNextBtn" aria-label="Next highlight">&#9654;</button>
       </div>
       <div class="highlights-list" id="highlightsList">
         <div class="no-data-note">Loading highlights&hellip;</div>
@@ -3094,6 +3313,18 @@ document.getElementById("adminSignInBtn").addEventListener("click", async ()=>{
   }
 });
 
+document.getElementById("adminPreviewToggleBtn").addEventListener("click", ()=>{
+  if(!isAdmin) return;
+  previewAsVisitor = !previewAsVisitor;
+  setAdminUiVisible(effectiveAdmin());
+  renderAll();
+  if(overlayPlayerName){
+    const wrap = document.getElementById("overlayPhotoEditWrap");
+    if(wrap) wrap.style.display = effectiveAdmin() ? "block" : "none";
+    renderPlayerHighlights(overlayPlayerName);
+  }
+});
+
 document.getElementById("seasonSelect").addEventListener("change", e=>{
   state.season = e.target.value;
   standingsSort = {key:null, dir:1};
@@ -3127,6 +3358,7 @@ document.getElementById("tabs").addEventListener("click", e=>{
     if(btn.dataset.tab==="players") syncPlayersScrollTopWidth();
     if(btn.dataset.tab==="attributes"){ syncAttributesScrollTopWidth(); syncAttributesStickyOffset(); }
   });
+  if(btn.dataset.tab==="highlight-of-day") renderHighlightOfDay();
 });
 
 document.querySelector("#standingsTable thead").addEventListener("click", e=>{
@@ -3198,7 +3430,7 @@ function renderAll(){
   renderGames();
   renderRecords();
   renderHistory();
-  if(isAdmin){
+  if(effectiveAdmin()){
     renderAdminTeamEditor();
     renderAdminWeeklyEditor();
     renderAdminRecordsEditor();
