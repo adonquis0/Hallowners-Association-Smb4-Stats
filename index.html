@@ -808,6 +808,20 @@
   .filter-select:hover{border-color:var(--gold); color:var(--cream);}
   .filter-select:focus{outline:none; border-color:var(--gold);}
 
+  .table-search-input{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    background:var(--navy-950);
+    border:1px solid var(--hairline);
+    color:var(--cream);
+    padding:7px 10px;
+    width:170px;
+    max-width:40vw;
+  }
+  .table-search-input::placeholder{color:var(--cream-dim); text-transform:uppercase; letter-spacing:1px; font-size:10px;}
+  .table-search-input:hover{border-color:var(--gold);}
+  .table-search-input:focus{outline:none; border-color:var(--gold);}
+
   /* ---------- attribute snapshot card on a player's profile ---------- */
   .profile-attr-note{
     font-family:'IBM Plex Mono',monospace;
@@ -1231,7 +1245,8 @@
     <div class="toggle-row" id="statToggleRow" style="flex-wrap:wrap; align-items:center;">
       <button class="toggle-btn active" data-stat-view="batting">Batting</button>
       <button class="toggle-btn" data-stat-view="pitching">Pitching</button>
-      <select class="filter-select" id="playersTeamFilter"><option value="all">All Teams</option></select>
+      <input type="text" class="table-search-input" id="playersSearchInput" placeholder="Search players&hellip;" style="margin-left:auto;">
+      <select class="filter-select" id="playersTeamFilter" style="margin-left:0;"><option value="all">All Teams</option></select>
     </div>
     <label class="career-toggle" style="display:flex; align-items:center; gap:8px; margin-bottom:14px; font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--cream-dim); cursor:pointer;">
       <input type="checkbox" id="careerStatsCheckbox">
@@ -1252,7 +1267,8 @@
     <div class="toggle-row" id="attrToggleRow" style="flex-wrap:wrap; align-items:center;">
       <button class="toggle-btn active" data-attr-view="hitters">Hitters</button>
       <button class="toggle-btn" data-attr-view="pitchers">Pitchers</button>
-      <select class="filter-select" id="attrTeamFilter"><option value="all">All Teams</option></select>
+      <input type="text" class="table-search-input" id="attrSearchInput" placeholder="Search players&hellip;" style="margin-left:auto;">
+      <select class="filter-select" id="attrTeamFilter" style="margin-left:0;"><option value="all">All Teams</option></select>
     </div>
     <div class="attr-pager">
       <button class="attr-pager-arrow" id="attrPagePrev" aria-label="Previous page">&#9664;</button>
@@ -2014,6 +2030,7 @@ let currentStatView = "batting";
 let showCareerStats = false;
 let playersSort = {key:null, dir:1};
 let playersTeamFilter = "all";
+let playersSearchQuery = "";
 
 function escapeAttr(s){ return String(s).replace(/"/g,"&quot;"); }
 // Full HTML escaping (&, <, >, ", ') — used for any user-submitted text that
@@ -2055,6 +2072,10 @@ function renderPlayersBody(){
   if(playersTeamFilter!=="all"){
     data = data.filter(p=> normTeamKey(p.team)===normTeamKey(playersTeamFilter));
   }
+  if(playersSearchQuery){
+    const q = playersSearchQuery.toLowerCase();
+    data = data.filter(p=> String(p.name).toLowerCase().includes(q));
+  }
   if(playersSort.key){
     data.sort((a,b)=>{
       const av=a[playersSort.key], bv=b[playersSort.key];
@@ -2064,6 +2085,10 @@ function renderPlayersBody(){
   }
   const tbody = document.querySelector("#playersTable tbody");
   if(!data.length){
+    if(playersSearchQuery){
+      tbody.innerHTML = `<tr><td colspan="${cols.length}" class="no-data-note">No players matching "${escapeHtml(playersSearchQuery)}".</td></tr>`;
+      return;
+    }
     const teamNote = playersTeamFilter!=="all" ? ` for ${teamName(playersTeamFilter)}` : "";
     const scopeNote = showCareerStats ? "on file yet" : "on file for this season yet — import a CSV on the Import Data tab";
     tbody.innerHTML = `<tr><td colspan="${cols.length}" class="no-data-note">No ${currentStatView} stats${teamNote} ${scopeNote}.</td></tr>`;
@@ -2309,6 +2334,7 @@ let currentAttrView = "hitters";
 let attrPageTitle = "Bio";
 let attrSort = {key:null, dir:1};
 let attrTeamFilter = "all";
+let attrSearchQuery = "";
 
 // Same pattern as renderPlayersTeamFilter(): repopulate per-season, falling
 // back to "All Teams" if the previously-selected team isn't rostered this
@@ -2379,6 +2405,10 @@ function renderAttributesBody(){
   if(attrTeamFilter!=="all"){
     data = data.filter(p=> normTeamKey(p.team)===normTeamKey(attrTeamFilter));
   }
+  if(attrSearchQuery){
+    const q = attrSearchQuery.toLowerCase();
+    data = data.filter(p=> String(p.name).toLowerCase().includes(q));
+  }
   const cols = activeAttrPage().cols;
   if(attrSort.key){
     const col = cols.find(c=>c.key===attrSort.key);
@@ -2386,6 +2416,11 @@ function renderAttributesBody(){
   }
   const tbody = document.getElementById("attributesBody");
   if(!data.length){
+    if(attrSearchQuery){
+      tbody.innerHTML = `<tr><td colspan="${cols.length}" class="no-data-note">No players matching "${escapeHtml(attrSearchQuery)}".</td></tr>`;
+      syncAttributesScrollTopWidth();
+      return;
+    }
     const teamNote = attrTeamFilter!=="all" ? ` for ${teamName(attrTeamFilter)}` : "";
     tbody.innerHTML = `<tr><td colspan="${cols.length}" class="no-data-note">No ${currentAttrView} attribute data${teamNote} on file for this season yet.</td></tr>`;
     syncAttributesScrollTopWidth();
@@ -2437,6 +2472,11 @@ document.getElementById("attributesHeadRow").addEventListener("click", e=>{
 
 document.getElementById("attrTeamFilter").addEventListener("change", e=>{
   attrTeamFilter = e.target.value;
+  renderAttributesBody();
+});
+
+document.getElementById("attrSearchInput").addEventListener("input", e=>{
+  attrSearchQuery = e.target.value.trim();
   renderAttributesBody();
 });
 
@@ -2645,6 +2685,18 @@ function getPlayerAwards(name){
   [...SEASON_IDS].reverse().forEach(id=>{ // oldest -> newest
     const season = SEASONS[id];
     (season.awards||[]).filter(a=>nameMatches(name, a.winner)).forEach(a=> won.push({...a, seasonLabel:season.label}));
+  });
+  return won;
+}
+
+// Finals MVP lives on HISTORY (h.fmvp), not in a season's awards[] list, so
+// it needs its own lookup rather than being picked up by getPlayerAwards().
+function getPlayerFMVPs(name){
+  const won = [];
+  HISTORY.forEach(h=>{
+    if(h.fmvp && nameMatches(name, h.fmvp)){
+      won.push({ name:"Finals MVP", winner:h.fmvp, seasonLabel:h.season, detail:`${h.champion} def. ${h.runnerUp}` });
+    }
   });
   return won;
 }
@@ -3093,6 +3145,20 @@ function seededRandom(seedStr){
   return (h % 100000) / 100000;
 }
 
+// YYYY-MM-DD for the viewer's local calendar day. The comment above this
+// section always promised "changes at midnight local time", but the date
+// key used to be built with toISOString(), which is UTC — so the pick was
+// actually flipping at UTC midnight (mid-afternoon/evening for US viewers),
+// not local midnight. This is what the "date" in highlightOfDayCache and
+// HIGHLIGHT_OF_DAY_KEY should always be keyed on.
+function localDateKey(d){
+  const dt = d || new Date();
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth()+1).padStart(2,"0");
+  const day = String(dt.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+
 let highlightOfDayCache = { date:null, entry:null };
 
 // Speed notes:
@@ -3107,7 +3173,7 @@ let highlightOfDayCache = { date:null, entry:null };
 async function renderHighlightOfDay(){
   const wrap = document.getElementById("highlightOfDayWrap");
   if(!wrap) return;
-  const todayKey = new Date().toISOString().slice(0,10);
+  const todayKey = localDateKey();
   if(highlightOfDayCache.date === todayKey){
     paintHighlightOfDay(highlightOfDayCache.entry);
     return;
@@ -3119,7 +3185,11 @@ async function renderHighlightOfDay(){
       const cached = await window.storage.get(HIGHLIGHT_OF_DAY_KEY, true);
       if(cached && cached.value){
         const parsed = JSON.parse(cached.value);
-        if(parsed && parsed.date === todayKey){
+        // A stored null "entry" means nobody had a highlight uploaded the
+        // moment today's pick was first computed. Don't trust that as a
+        // day-long negative cache — someone may have added one since —
+        // so fall through and rescan instead of freezing on "no highlight".
+        if(parsed && parsed.date === todayKey && parsed.entry){
           highlightOfDayCache = { date: todayKey, entry: parsed.entry };
           paintHighlightOfDay(parsed.entry);
           return;
@@ -3140,7 +3210,11 @@ async function renderHighlightOfDay(){
   highlightOfDayCache = { date: todayKey, entry: pick };
   paintHighlightOfDay(pick);
 
-  if(window.storage){
+  // Only persist a real pick to the shared key. Writing a null pick would
+  // freeze "no highlights yet" for every viewer for the rest of the day,
+  // even once someone uploads one — so leave it unset and let the next
+  // viewer (or this tab, next render) rescan instead.
+  if(window.storage && pick){
     try{
       await window.storage.set(HIGHLIGHT_OF_DAY_KEY, JSON.stringify({ date: todayKey, entry: pick }), true);
     }catch(e){
@@ -3341,7 +3415,7 @@ function openPlayerPage(name){
     </div>`;
   }
 
-  const playerAwards = getPlayerAwards(name);
+  const playerAwards = [...getPlayerAwards(name), ...getPlayerFMVPs(name)];
   if(playerAwards.length){
     html += `<h3 class="sub-title">Awards</h3>
     <div class="player-overlay-awards">
@@ -3680,6 +3754,11 @@ document.getElementById("careerStatsCheckbox").addEventListener("change", e=>{
 
 document.getElementById("playersTeamFilter").addEventListener("change", e=>{
   playersTeamFilter = e.target.value;
+  renderPlayersBody();
+});
+
+document.getElementById("playersSearchInput").addEventListener("input", e=>{
+  playersSearchQuery = e.target.value.trim();
   renderPlayersBody();
 });
 
