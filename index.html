@@ -724,6 +724,11 @@
     color:var(--gold);
     border-top:2px solid var(--gold);
   }
+  tr.playoff-row td{
+    background:rgba(245,183,0,0.06);
+    font-style:italic;
+    color:var(--cream-dim);
+  }
   .no-data-note{
     color:var(--cream-dim);
     font-size:12.5px;
@@ -1263,10 +1268,16 @@
       <input type="text" class="table-search-input" id="playersSearchInput" placeholder="Search players&hellip;" style="margin-left:auto;">
       <select class="filter-select" id="playersTeamFilter" style="margin-left:0;"><option value="all">All Teams</option></select>
     </div>
-    <label class="career-toggle" style="display:flex; align-items:center; gap:8px; margin-bottom:14px; font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--cream-dim); cursor:pointer;">
-      <input type="checkbox" id="careerStatsCheckbox">
-      Career stats (all seasons)
-    </label>
+    <div class="stat-scope-toggles" style="display:flex; flex-wrap:wrap; gap:8px 20px; margin-bottom:14px;">
+      <label class="career-toggle" style="display:flex; align-items:center; gap:8px; font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--cream-dim); cursor:pointer;">
+        <input type="checkbox" id="careerStatsCheckbox">
+        Career stats (all seasons)
+      </label>
+      <label class="career-toggle" id="playoffToggleWrap" style="display:none; align-items:center; gap:8px; font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--cream-dim); cursor:pointer;">
+        <input type="checkbox" id="playoffStatsCheckbox">
+        Playoffs
+      </label>
+    </div>
     <div class="table-scroll-top" id="playersScrollTop"><div id="playersScrollTopInner"></div></div>
     <div class="table-scroll-bottom" id="playersScrollBottom">
     <table id="playersTable">
@@ -1391,7 +1402,7 @@
 
     <div class="import-block">
       <h4>Quick Update &mdash; Awards</h4>
-      <p>Shown on the History &amp; Awards tab. These apply to whichever season is selected in the header dropdown &mdash; switch seasons up top to edit a different season's awards (e.g. Season 2 Playoffs has its own set, separate from Season 2).</p>
+      <p>Shown on the History &amp; Awards tab. These apply to whichever season is selected in the header dropdown &mdash; switch seasons up top to edit a different season's awards.</p>
       <div style="overflow-x:auto;">
         <table id="adminAwardsTable">
           <thead><tr>
@@ -1459,6 +1470,29 @@
         <button class="file-btn" id="sheetSyncBtn">Sync Now</button>
       </div>
       <div class="import-status" id="sheetSyncStatus"></div>
+    </div>
+
+    <div class="import-block">
+      <h4>Sync Season 2 Playoffs from Google Sheets</h4>
+      <p>Playoffs aren't a season of their own &mdash; these batting and pitching stats feed the "Playoffs" toggle on the Players tab and the extra line on player profiles. Paste the published-CSV link for each tab (File &rarr; Share &rarr; Publish to web &rarr; pick the tab &rarr; CSV). Same columns as the Batting Stats / Pitching Stats templates below.</p>
+      <div class="import-row" style="flex-direction:column; align-items:stretch; gap:8px;">
+        <input type="text" id="sheetPlayoffBattersUrl" placeholder="Playoff Batting Stats sheet CSV link" class="sheet-url-input">
+        <input type="text" id="sheetPlayoffPitchersUrl" placeholder="Playoff Pitching Stats sheet CSV link" class="sheet-url-input">
+      </div>
+      <div class="import-row" style="margin-top:12px;">
+        <button class="file-btn" id="sheetPlayoffSyncBtn">Sync Now</button>
+      </div>
+      <div class="import-status" id="sheetPlayoffSyncStatus"></div>
+    </div>
+
+    <div class="import-block">
+      <h4>Season 2 Playoffs (bulk CSV)</h4>
+      <p>Same columns as Batting Stats / Pitching Stats above. Use this instead of the Sheet Sync above for a one-off upload.</p>
+      <div class="import-row">
+        <label class="file-btn">Choose Batting CSV<input type="file" accept=".csv" id="playoffBattersFile" style="display:none;"></label>
+        <label class="file-btn">Choose Pitching CSV<input type="file" accept=".csv" id="playoffPitchersFile" style="display:none;"></label>
+      </div>
+      <div class="import-status" id="playoffCsvStatus"></div>
     </div>
 
     <div class="import-block">
@@ -1696,7 +1730,21 @@ firebase.auth().onAuthStateChanged(user=>{
 // switches every panel (Standings, Players, Box Scores, Awards) between these.
 // Add a new season by adding another key here — everything else (sorting,
 // leaders, player pages, CSV import) reads whichever season is selected.
-const SEASON_IDS = ["s2po","s2","s1"]; // most recent first
+const SEASON_IDS = ["s2","s1"]; // most recent first — playoffs are NOT a season here
+
+// Playoffs are a slice of data hanging off a regular season, not a season of
+// their own: maps a regular-season id to its playoff data's key in SEASONS.
+// That playoff data lives in SEASONS exactly like any season (teams/
+// batters/pitchers/etc.) but is deliberately left out of SEASON_IDS so it
+// never shows up in the header season dropdown. It's surfaced instead as a
+// toggle in the Full Stats tables and as an extra row on player profiles.
+const PLAYOFF_OF = { s2: "s2po" };
+function playoffIdFor(seasonId){ return PLAYOFF_OF[seasonId] || null; }
+function hasPlayoffs(seasonId){ return !!PLAYOFF_OF[seasonId]; }
+// Every id that actually needs a storage slot — SEASON_IDS plus each
+// season's playoff slice — used for load/reset, which must not forget
+// playoff data just because it's hidden from the dropdown.
+const STORAGE_SEASON_IDS = [...SEASON_IDS, ...Object.values(PLAYOFF_OF)];
 
 const SEASONS = {
 
@@ -2094,6 +2142,7 @@ function profileStatCell(row, col, isCareerRow){
 
 let currentStatView = "batting";
 let showCareerStats = false;
+let showPlayoffStats = false;
 let playersSort = {key:null, dir:1};
 let playersTeamFilter = "all";
 let playersSearchQuery = "";
@@ -2130,11 +2179,34 @@ function renderPlayersHead(){
   ).join("");
 }
 
+// Which SEASONS slice the Full Stats tables should read from: the regular
+// season, or (when the Playoffs toggle is on and the current season has a
+// playoff slice) that season's playoff data instead.
+function playersStatsSeason(){
+  if(showPlayoffStats && hasPlayoffs(state.season)) return SEASONS[playoffIdFor(state.season)];
+  return SEASONS[state.season];
+}
+
+// Shows/hides the Playoffs checkbox for whichever season is selected, and
+// falls back out of playoff view if the newly-selected season has none.
+function updatePlayoffToggleVisibility(){
+  const wrap = document.getElementById("playoffToggleWrap");
+  if(!wrap) return;
+  const show = hasPlayoffs(state.season);
+  wrap.style.display = show ? "flex" : "none";
+  if(!show && showPlayoffStats){
+    showPlayoffStats = false;
+    const cb = document.getElementById("playoffStatsCheckbox");
+    if(cb) cb.checked = false;
+  }
+}
+
 function renderPlayersBody(){
+  updatePlayoffToggleVisibility();
   const cols = currentStatView==="batting" ? BATTING_COLS : PITCHING_COLS;
   let data = showCareerStats
     ? [...(currentStatView==="batting"?careerBattersArr():careerPitchersArr())]
-    : [...(currentStatView==="batting"?battersArr():pitchersArr())];
+    : [...(currentStatView==="batting"?playersStatsSeason().batters:playersStatsSeason().pitchers)];
   if(playersTeamFilter!=="all"){
     data = data.filter(p=> normTeamKey(p.team)===normTeamKey(playersTeamFilter));
   }
@@ -2156,7 +2228,9 @@ function renderPlayersBody(){
       return;
     }
     const teamNote = playersTeamFilter!=="all" ? ` for ${teamName(playersTeamFilter)}` : "";
-    const scopeNote = showCareerStats ? "on file yet" : "on file for this season yet — import a CSV on the Import Data tab";
+    const scopeNote = showCareerStats
+      ? "on file yet"
+      : (showPlayoffStats ? "on file for the playoffs yet — import a CSV or sync a sheet on the Admin tab" : "on file for this season yet — import a CSV on the Import Data tab");
     tbody.innerHTML = `<tr><td colspan="${cols.length}" class="no-data-note">No ${currentStatView} stats${teamNote} ${scopeNote}.</td></tr>`;
     return;
   }
@@ -2845,6 +2919,17 @@ function getPlayerCareer(name){
     if(b) battingRows.push({seasonId:id, label:season.label, ...b});
     const p = season.pitchers.find(x=>x.name===name);
     if(p) pitchingRows.push({seasonId:id, label:season.label, ...p});
+    // Playoffs immediately follow their regular season's row rather than
+    // getting a row of their own in SEASON_IDS — flagged isPlayoff so the
+    // Career total row (and the "N season(s) on record" count) can skip it.
+    const poId = playoffIdFor(id);
+    if(poId){
+      const poSeason = SEASONS[poId];
+      const pb = poSeason.batters.find(x=>x.name===name);
+      if(pb) battingRows.push({seasonId:poId, label:poSeason.label, isPlayoff:true, ...pb});
+      const pp = poSeason.pitchers.find(x=>x.name===name);
+      if(pp) pitchingRows.push({seasonId:poId, label:poSeason.label, isPlayoff:true, ...pp});
+    }
   });
   return {battingRows, pitchingRows};
 }
@@ -2863,9 +2948,12 @@ function getPlayerLatestAttributes(name){
   return null;
 }
 
+// Career totals are regular-season only — playoff rows (flagged isPlayoff
+// by getPlayerCareer) are shown on their own line but never rolled in here.
 function careerBattingTotals(rows){
+  const regRows = rows.filter(r=>!r.isPlayoff);
   const t = {g:0,ab:0,h:0,hr:0,rbi:0,r:0,tb:0,"2b":0,"3b":0,bb:0,so:0,sb:0,cs:0,hbp:0,sac:0,sf:0,e:0};
-  rows.forEach(r=>{ Object.keys(t).forEach(k=> t[k]+= (r[k]||0)); });
+  regRows.forEach(r=>{ Object.keys(t).forEach(k=> t[k]+= (r[k]||0)); });
   t.avg = t.ab ? t.h/t.ab : 0;
   t.obp = (t.ab+t.bb+t.hbp+t.sf) ? (t.h+t.bb+t.hbp)/(t.ab+t.bb+t.hbp+t.sf) : 0;
   t.slg = t.ab ? t.tb/t.ab : 0;
@@ -2874,13 +2962,14 @@ function careerBattingTotals(rows){
 }
 
 function careerPitchingTotals(rows){
+  const regRows = rows.filter(r=>!r.isPlayoff);
   const t = {w:0,l:0,r:0,er:0,g:0,gs:0,sv:0,h:0,so:0,bb:0,wp:0,hr:0,cg:0,sho:0,hb:0,tbf:0,np:0};
   let outs = 0;
-  rows.forEach(r=>{ Object.keys(t).forEach(k=> t[k]+= (r[k]||0)); outs += ipToOuts(r.ip||0); });
+  regRows.forEach(r=>{ Object.keys(t).forEach(k=> t[k]+= (r[k]||0)); outs += ipToOuts(r.ip||0); });
   t.ip = outsToIp(outs);
   t.era = outs ? (t.er*9)/(outs/3) : 0;
   t.whip = outs ? (t.bb+t.h)/(outs/3) : 0;
-  t.avg = rows.length ? rows.reduce((s,r)=> s+(r.avg||0), 0)/rows.length : 0;
+  t.avg = regRows.length ? regRows.reduce((s,r)=> s+(r.avg||0), 0)/regRows.length : 0;
   return t;
 }
 
@@ -3414,7 +3503,7 @@ function openPlayerPage(name){
 
   document.getElementById("playerName").textContent = name;
   document.getElementById("playerMeta").innerHTML =
-    `${teamTag(latest.team)} ${teamName(latest.team)} &middot; ${latest.pos||""} &middot; ${battingRows.length+pitchingRows.length>0?(new Set([...battingRows,...pitchingRows].map(r=>r.seasonId))).size:0} season(s) on record`;
+    `${teamTag(latest.team)} ${teamName(latest.team)} &middot; ${latest.pos||""} &middot; ${battingRows.length+pitchingRows.length>0?(new Set([...battingRows,...pitchingRows].filter(r=>!r.isPlayoff).map(r=>r.seasonId))).size:0} season(s) on record`;
 
   overlayPlayerName = name;
   const avatarTeam = teamById()[latest.team];
@@ -3517,7 +3606,7 @@ function openPlayerPage(name){
       <thead><tr><th>Season</th>${PROFILE_BATTING_COLS.map(c=>`<th>${c.label}</th>`).join("")}</tr></thead>
       <tbody>
         ${battingRows.map(r=>`
-          <tr>
+          <tr class="${r.isPlayoff?'playoff-row':''}">
             <td>${r.label}</td>${PROFILE_BATTING_COLS.map(c=>profileStatCell(r,c,false)).join("")}
           </tr>`).join("")}
         <tr class="career-row">
@@ -3536,7 +3625,7 @@ function openPlayerPage(name){
       <thead><tr><th>Season</th>${PROFILE_PITCHING_COLS.map(c=>`<th>${c.label}</th>`).join("")}</tr></thead>
       <tbody>
         ${pitchingRows.map(r=>`
-          <tr>
+          <tr class="${r.isPlayoff?'playoff-row':''}">
             <td>${r.label}</td>${PROFILE_PITCHING_COLS.map(c=>profileStatCell(r,c,false)).join("")}
           </tr>`).join("")}
         <tr class="career-row">
@@ -3722,6 +3811,9 @@ document.getElementById("seasonSelect").addEventListener("change", e=>{
   state.season = e.target.value;
   standingsSort = {key:null, dir:1};
   playersSort = {key:null, dir:1};
+  showPlayoffStats = false;
+  const playoffCb = document.getElementById("playoffStatsCheckbox");
+  if(playoffCb) playoffCb.checked = false;
   attrPageTitle = "Bio";
   attrSort = {key:null, dir:1};
   renderAll();
@@ -3814,6 +3906,21 @@ document.querySelectorAll("#statToggleRow .toggle-btn").forEach(btn=>{
 
 document.getElementById("careerStatsCheckbox").addEventListener("change", e=>{
   showCareerStats = e.target.checked;
+  if(showCareerStats){
+    showPlayoffStats = false;
+    const cb = document.getElementById("playoffStatsCheckbox");
+    if(cb) cb.checked = false;
+  }
+  playersSort = {key:null, dir:1};
+  renderPlayersBody();
+});
+
+document.getElementById("playoffStatsCheckbox").addEventListener("change", e=>{
+  showPlayoffStats = e.target.checked;
+  if(showPlayoffStats){
+    showCareerStats = false;
+    document.getElementById("careerStatsCheckbox").checked = false;
+  }
   playersSort = {key:null, dir:1};
   renderPlayersBody();
 });
@@ -3867,6 +3974,7 @@ function renderAll(){
     renderPhotoPlayerSelect();
     renderLogoTeamSelect();
     renderSheetUrlInputs();
+    renderPlayoffSheetUrlInputs();
   }
 }
 
@@ -4282,6 +4390,91 @@ async function syncFromSheets(){
   }
 }
 
+/* ---------- admin: sync playoff batting/pitching from Google Sheets ----------
+   Playoffs aren't tied to state.season (they're not in SEASON_IDS / the
+   header dropdown), so this talks to SEASONS[playoffIdFor(...)] directly
+   rather than reusing battersArr()/pitchersArr()/syncFromSheets above. */
+
+async function loadPlayoffSheetUrls(){
+  try{
+    const res = await window.storage.get(`sheetUrls_${PLAYOFF_OF.s2}`);
+    return res && res.value ? JSON.parse(res.value) : {};
+  }catch(e){
+    return {};
+  }
+}
+
+async function renderPlayoffSheetUrlInputs(){
+  const battersEl = document.getElementById("sheetPlayoffBattersUrl");
+  if(!battersEl) return;
+  const urls = await loadPlayoffSheetUrls();
+  const pitchersEl = document.getElementById("sheetPlayoffPitchersUrl");
+  if(!battersEl.value) battersEl.value = urls.batters || "";
+  if(pitchersEl && !pitchersEl.value) pitchersEl.value = urls.pitchers || "";
+}
+
+async function syncPlayoffFromSheets(){
+  const statusEl = document.getElementById("sheetPlayoffSyncStatus");
+  const battersUrl = document.getElementById("sheetPlayoffBattersUrl").value.trim();
+  const pitchersUrl = document.getElementById("sheetPlayoffPitchersUrl").value.trim();
+  if(!battersUrl && !pitchersUrl){
+    setStatus(statusEl, "Paste at least one sheet link first.", true);
+    return;
+  }
+  setStatus(statusEl, "Syncing\u2026", false);
+  const poId = PLAYOFF_OF.s2;
+  const synced = [];
+  try{
+    if(battersUrl){
+      const rows = await fetchSheetCsv(battersUrl);
+      const arr = SEASONS[poId].batters; arr.length = 0;
+      rows.forEach(r=> arr.push(mapBatterRow(r)));
+      await saveToStorage(`batters_${poId}`, arr);
+      synced.push(`${rows.length} playoff batters`);
+    }
+    if(pitchersUrl){
+      const rows = await fetchSheetCsv(pitchersUrl);
+      const arr = SEASONS[poId].pitchers; arr.length = 0;
+      rows.forEach(r=> arr.push(mapPitcherRow(r)));
+      await saveToStorage(`pitchers_${poId}`, arr);
+      synced.push(`${rows.length} playoff pitchers`);
+    }
+    await saveToStorage(`sheetUrls_${poId}`, {batters:battersUrl, pitchers:pitchersUrl});
+    renderAll();
+    setStatus(statusEl, `Synced ${synced.join(", ")}.`, false);
+  }catch(err){
+    setStatus(statusEl, "Sync failed — make sure each link is published to the web as CSV (File \u2192 Share \u2192 Publish to web). " + (err.message||""), true);
+  }
+}
+
+document.getElementById("sheetPlayoffSyncBtn").addEventListener("click", syncPlayoffFromSheets);
+
+document.getElementById("playoffBattersFile").addEventListener("change", e=>{
+  const file = e.target.files[0]; if(!file) return;
+  const statusEl = document.getElementById("playoffCsvStatus");
+  const poId = PLAYOFF_OF.s2;
+  parseCsvFile(file, rows=>{
+    const arr = SEASONS[poId].batters;
+    arr.length = 0;
+    rows.forEach(r=> arr.push(mapBatterRow(r)));
+    saveToStorage(`batters_${poId}`, arr);
+    renderAll();
+  }, statusEl, `playoff batters (${SEASONS[poId].label})`);
+});
+
+document.getElementById("playoffPitchersFile").addEventListener("change", e=>{
+  const file = e.target.files[0]; if(!file) return;
+  const statusEl = document.getElementById("playoffCsvStatus");
+  const poId = PLAYOFF_OF.s2;
+  parseCsvFile(file, rows=>{
+    const arr = SEASONS[poId].pitchers;
+    arr.length = 0;
+    rows.forEach(r=> arr.push(mapPitcherRow(r)));
+    saveToStorage(`pitchers_${poId}`, arr);
+    renderAll();
+  }, statusEl, `playoff pitchers (${SEASONS[poId].label})`);
+});
+
 function downloadCsv(filename, rows){
   const csv = Papa.unparse(rows);
   const blob = new Blob([csv], {type:"text/csv"});
@@ -4519,7 +4712,7 @@ document.getElementById("resetData").addEventListener("click", async ()=>{
   if(!confirm("Clear imported data for every season and go back to sample data?")) return;
   try{
     if(window.storage){
-      for(const id of SEASON_IDS){
+      for(const id of STORAGE_SEASON_IDS){
         await window.storage.delete(`teams_${id}`).catch(()=>{});
         await window.storage.delete(`batters_${id}`).catch(()=>{});
         await window.storage.delete(`pitchers_${id}`).catch(()=>{});
@@ -4528,6 +4721,7 @@ document.getElementById("resetData").addEventListener("click", async ()=>{
         await window.storage.delete(`weekly_${id}`).catch(()=>{});
         await window.storage.delete(`records_${id}`).catch(()=>{});
         await window.storage.delete(`awards_${id}`).catch(()=>{});
+        await window.storage.delete(`sheetUrls_${id}`).catch(()=>{});
       }
       await window.storage.delete("history").catch(()=>{});
     }
@@ -4537,7 +4731,7 @@ document.getElementById("resetData").addEventListener("click", async ()=>{
 
 async function loadFromStorage(){
   if(!window.storage) return;
-  for(const id of SEASON_IDS){
+  for(const id of STORAGE_SEASON_IDS){
     try{
       const t = await window.storage.get(`teams_${id}`);
       if(t && t.value){ const parsed = JSON.parse(t.value); SEASONS[id].teams.length=0; SEASONS[id].teams.push(...parsed); }
