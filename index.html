@@ -635,7 +635,9 @@
   #adminTeamBody td:first-child{white-space:nowrap;}
   #adminGamesBody input, #adminGamesBody select,
   #adminWeeklyBody input, #adminWeeklyBody select,
-  #adminRecordsBody input, #adminRecordsBody select{
+  #adminRecordsBody input, #adminRecordsBody select,
+  #adminAwardsBody input, #adminAwardsBody select,
+  #adminHistoryBody input, #adminHistoryBody select{
     background:var(--navy-950);
     border:1px solid var(--hairline);
     color:var(--cream);
@@ -665,6 +667,19 @@
   #adminRecordsBody td{white-space:nowrap;}
   #adminRecordsBody .admin-record-remove{color:var(--crimson); border-color:var(--crimson);}
   #adminRecordsBody .admin-record-remove:hover{color:var(--gold); border-color:var(--gold);}
+  #adminAwardsBody input.admin-name-input{width:150px;}
+  #adminAwardsBody input.admin-stat-input{width:200px;}
+  #adminAwardsBody input.admin-award-input{width:130px;}
+  #adminAwardsBody select{width:120px;}
+  #adminAwardsBody td{white-space:nowrap;}
+  #adminAwardsBody .admin-award-remove{color:var(--crimson); border-color:var(--crimson);}
+  #adminAwardsBody .admin-award-remove:hover{color:var(--gold); border-color:var(--gold);}
+  #adminHistoryBody input.admin-season-input{width:150px;}
+  #adminHistoryBody input.admin-name-input{width:150px;}
+  #adminHistoryBody select{width:150px;}
+  #adminHistoryBody td{white-space:nowrap;}
+  #adminHistoryBody .admin-history-remove{color:var(--crimson); border-color:var(--crimson);}
+  #adminHistoryBody .admin-history-remove:hover{color:var(--gold); border-color:var(--gold);}
   .player-overlay-awards{
     display:grid;
     grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
@@ -1375,6 +1390,42 @@
     </div>
 
     <div class="import-block">
+      <h4>Quick Update &mdash; Awards</h4>
+      <p>Shown on the History &amp; Awards tab. These apply to whichever season is selected in the header dropdown &mdash; switch seasons up top to edit a different season's awards (e.g. Season 2 Playoffs has its own set, separate from Season 2).</p>
+      <div style="overflow-x:auto;">
+        <table id="adminAwardsTable">
+          <thead><tr>
+            <th style="text-align:left;">Award</th><th style="text-align:left;">Winner</th><th style="text-align:left;">Team</th><th style="text-align:left;">Detail</th><th></th>
+          </tr></thead>
+          <tbody id="adminAwardsBody"></tbody>
+        </table>
+      </div>
+      <div class="import-row" style="margin-top:12px;">
+        <button class="template-link" id="adminAwardAdd">+ Add Award</button>
+        <button class="file-btn" id="adminAwardsSave">Save Awards</button>
+      </div>
+      <div class="import-status" id="adminAwardsStatus"></div>
+    </div>
+
+    <div class="import-block">
+      <h4>Quick Update &mdash; Season History</h4>
+      <p>Shown at the top of the History &amp; Awards tab. Spans every season on the site &mdash; not affected by the season dropdown up top. Add a row per completed season with its champion and finals MVP.</p>
+      <div style="overflow-x:auto;">
+        <table id="adminHistoryTable">
+          <thead><tr>
+            <th style="text-align:left;">Season</th><th style="text-align:left;">Champion</th><th style="text-align:left;">Runner-Up</th><th style="text-align:left;">Finals MVP</th><th></th>
+          </tr></thead>
+          <tbody id="adminHistoryBody"></tbody>
+        </table>
+      </div>
+      <div class="import-row" style="margin-top:12px;">
+        <button class="template-link" id="adminHistoryAdd">+ Add Season</button>
+        <button class="file-btn" id="adminHistorySave">Save Season History</button>
+      </div>
+      <div class="import-status" id="adminHistoryStatus"></div>
+    </div>
+
+    <div class="import-block">
       <h4>Quick Update &mdash; Recent Box Scores</h4>
       <p>Add finished games and edit their line scores. Enter each line score as inning-by-inning runs separated by commas (use <code>x</code> for a home team that didn't bat in the bottom of the last inning). Edit any field and hit Save; the Box Scores tab updates automatically.</p>
       <div style="overflow-x:auto;">
@@ -1645,9 +1696,24 @@ firebase.auth().onAuthStateChanged(user=>{
 // switches every panel (Standings, Players, Box Scores, Awards) between these.
 // Add a new season by adding another key here — everything else (sorting,
 // leaders, player pages, CSV import) reads whichever season is selected.
-const SEASON_IDS = ["s2","s1"]; // most recent first
+const SEASON_IDS = ["s2po","s2","s1"]; // most recent first
 
 const SEASONS = {
+
+  s2po: {
+    label: "Season 2 Playoffs",
+    teams: [],
+    batters: [],
+    pitchers: [],
+    attributes: [],
+    games: [],
+    awards: [],
+    weekly: {
+      player:  { name:"", team:"", stat:"" },
+      pitcher: { name:"", team:"", stat:"" },
+    },
+    records: [],
+  },
 
   s2: {
     label: "Season 2",
@@ -3795,6 +3861,8 @@ function renderAll(){
     renderAdminTeamEditor();
     renderAdminWeeklyEditor();
     renderAdminRecordsEditor();
+    renderAdminAwardsEditor();
+    renderAdminHistoryEditor();
     renderAdminGamesEditor();
     renderPhotoPlayerSelect();
     renderLogoTeamSelect();
@@ -3912,6 +3980,103 @@ async function saveAdminRecordsEditor(){
   await saveToStorage(`records_${state.season}`, arr);
   renderAll();
   setStatus(document.getElementById("adminRecordsStatus"), "Saved.", false);
+}
+
+/* ---------- admin: awards editor (per season, like Records above) ---------- */
+
+function renderAdminAwardsEditor(){
+  const tbody = document.getElementById("adminAwardsBody");
+  if(!tbody) return;
+  const teams = teamsArr();
+  const teamOptions = sel => `<option value="">&mdash;</option>` + teams.map(t=>
+    `<option value="${escapeAttr(t.id)}" ${t.id===sel?"selected":""}>${escapeAttr(t.id)} \u2014 ${escapeAttr(t.name)}</option>`
+  ).join("");
+  tbody.innerHTML = awardsArr().map((a,i)=>`
+    <tr data-idx="${i}">
+      <td><input type="text" class="admin-award-input" data-field="name" value="${escapeAttr(a.name)}" placeholder="e.g. MVP"></td>
+      <td><input type="text" class="admin-name-input" data-field="winner" value="${escapeAttr(a.winner)}" placeholder="Winner name"></td>
+      <td><select data-field="team">${teamOptions(a.team)}</select></td>
+      <td><input type="text" class="admin-stat-input" data-field="detail" value="${escapeAttr(a.detail||"")}" placeholder="e.g. .643 Avg, 8 HR"></td>
+      <td><button type="button" class="template-link admin-award-remove" data-idx="${i}">Remove</button></td>
+    </tr>
+  `).join("");
+
+  if(!awardsArr().length){
+    tbody.innerHTML = `<tr><td colspan="5" style="color:var(--cream-dim); font-style:italic;">No awards yet for this season &mdash; click "+ Add Award" to add one.</td></tr>`;
+  }
+
+  tbody.querySelectorAll(".admin-award-remove").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      awardsArr().splice(Number(btn.dataset.idx),1);
+      renderAdminAwardsEditor();
+    });
+  });
+}
+
+async function saveAdminAwardsEditor(){
+  const arr = awardsArr();
+  document.querySelectorAll("#adminAwardsBody tr[data-idx]").forEach(row=>{
+    const a = arr[Number(row.dataset.idx)];
+    if(!a) return;
+    row.querySelectorAll("[data-field]").forEach(inp=>{
+      a[inp.dataset.field] = inp.value;
+    });
+  });
+  await saveToStorage(`awards_${state.season}`, arr);
+  renderAll();
+  setStatus(document.getElementById("adminAwardsStatus"), "Saved.", false);
+}
+
+/* ---------- admin: season history editor ----------
+   HISTORY spans every season (not tied to state.season), so it's saved to
+   its own global "history" storage key instead of one keyed per season. */
+
+function allTeamNamesAcrossSeasons(){
+  const names = new Set();
+  SEASON_IDS.forEach(id=> (SEASONS[id].teams||[]).forEach(t=> names.add(t.name)));
+  return Array.from(names).sort();
+}
+
+function renderAdminHistoryEditor(){
+  const tbody = document.getElementById("adminHistoryBody");
+  if(!tbody) return;
+  const teamNames = allTeamNamesAcrossSeasons();
+  const teamNameOptions = sel => `<option value="">&mdash;</option>` + teamNames.map(n=>
+    `<option value="${escapeAttr(n)}" ${n===sel?"selected":""}>${escapeAttr(n)}</option>`
+  ).join("");
+  tbody.innerHTML = HISTORY.map((h,i)=>`
+    <tr data-idx="${i}">
+      <td><input type="text" class="admin-season-input" data-field="season" value="${escapeAttr(h.season)}" placeholder="e.g. Season 2 Playoffs"></td>
+      <td><select data-field="champion">${teamNameOptions(h.champion)}</select></td>
+      <td><select data-field="runnerUp">${teamNameOptions(h.runnerUp)}</select></td>
+      <td><input type="text" class="admin-name-input" data-field="fmvp" value="${escapeAttr(h.fmvp||"")}" placeholder="Finals MVP name"></td>
+      <td><button type="button" class="template-link admin-history-remove" data-idx="${i}">Remove</button></td>
+    </tr>
+  `).join("");
+
+  if(!HISTORY.length){
+    tbody.innerHTML = `<tr><td colspan="5" style="color:var(--cream-dim); font-style:italic;">No seasons on file yet &mdash; click "+ Add Season" to add one.</td></tr>`;
+  }
+
+  tbody.querySelectorAll(".admin-history-remove").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      HISTORY.splice(Number(btn.dataset.idx),1);
+      renderAdminHistoryEditor();
+    });
+  });
+}
+
+async function saveAdminHistoryEditor(){
+  document.querySelectorAll("#adminHistoryBody tr[data-idx]").forEach(row=>{
+    const h = HISTORY[Number(row.dataset.idx)];
+    if(!h) return;
+    row.querySelectorAll("[data-field]").forEach(inp=>{
+      h[inp.dataset.field] = inp.value;
+    });
+  });
+  await saveToStorage("history", HISTORY);
+  renderAll();
+  setStatus(document.getElementById("adminHistoryStatus"), "Saved.", false);
 }
 
 /* ---------- admin: quick box-score editor ---------- */
@@ -4293,6 +4458,18 @@ document.getElementById("adminRecordAdd").addEventListener("click", ()=>{
 });
 document.getElementById("adminRecordsSave").addEventListener("click", saveAdminRecordsEditor);
 
+document.getElementById("adminAwardAdd").addEventListener("click", ()=>{
+  awardsArr().unshift({ name:"", winner:"", team:"", detail:"" });
+  renderAdminAwardsEditor();
+});
+document.getElementById("adminAwardsSave").addEventListener("click", saveAdminAwardsEditor);
+
+document.getElementById("adminHistoryAdd").addEventListener("click", ()=>{
+  HISTORY.unshift({ season:"", champion:"", runnerUp:"", fmvp:"" });
+  renderAdminHistoryEditor();
+});
+document.getElementById("adminHistorySave").addEventListener("click", saveAdminHistoryEditor);
+
 document.getElementById("adminGameAdd").addEventListener("click", ()=>{
   const teams = teamsArr();
   gamesArr().unshift({
@@ -4350,7 +4527,9 @@ document.getElementById("resetData").addEventListener("click", async ()=>{
         await window.storage.delete(`games_${id}`).catch(()=>{});
         await window.storage.delete(`weekly_${id}`).catch(()=>{});
         await window.storage.delete(`records_${id}`).catch(()=>{});
+        await window.storage.delete(`awards_${id}`).catch(()=>{});
       }
+      await window.storage.delete("history").catch(()=>{});
     }
   }catch(e){}
   location.reload();
@@ -4405,7 +4584,22 @@ async function loadFromStorage(){
         SEASONS[id].records.length=0; SEASONS[id].records.push(...parsed);
       }
     }catch(e){}
+    try{
+      const aw = await window.storage.get(`awards_${id}`);
+      if(aw && aw.value){
+        if(!SEASONS[id].awards) SEASONS[id].awards = [];
+        const parsed = JSON.parse(aw.value);
+        SEASONS[id].awards.length=0; SEASONS[id].awards.push(...parsed);
+      }
+    }catch(e){}
   }
+  try{
+    const h = await window.storage.get("history");
+    if(h && h.value){
+      const parsed = JSON.parse(h.value);
+      HISTORY.length = 0; HISTORY.push(...parsed);
+    }
+  }catch(e){}
 }
 
 /* ---------- init ---------- */
