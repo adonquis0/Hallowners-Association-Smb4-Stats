@@ -1864,7 +1864,7 @@ firebase.auth().onAuthStateChanged(user=>{
 // switches every panel (Standings, Players, Box Scores, Awards) between these.
 // Add a new season by adding another key here — everything else (sorting,
 // leaders, player pages, CSV import) reads whichever season is selected.
-const SEASON_IDS = ["s2","s1"]; // most recent first — playoffs are NOT a season here
+const SEASON_IDS = ["s3","s2","s1"]; // most recent first — playoffs are NOT a season here
 
 // Playoffs are a slice of data hanging off a regular season, not a season of
 // their own: maps a regular-season id to its playoff data's key in SEASONS.
@@ -1881,6 +1881,33 @@ function hasPlayoffs(seasonId){ return !!PLAYOFF_OF[seasonId]; }
 const STORAGE_SEASON_IDS = [...SEASON_IDS, ...Object.values(PLAYOFF_OF)];
 
 const SEASONS = {
+
+  // Blank slate — no data imported yet. Teams are pre-seeded at 0-0 so the
+  // Admin tab's team editor and Standings tab have the four league teams to
+  // work with right away; everything else (batters/pitchers/attributes/
+  // games/awards/records) starts empty, same as Season 1 did before its
+  // first CSV import, and fills in via the Admin tab and CSV importers.
+  s3: {
+    label: "Season 3",
+    draftAssignments: {},
+    draftTeamNames: ["Team 1","Team 2","Team 3","Team 4","Team 5","Team 6"],
+    teams: [
+      { id:"CRW", name:"Crowmaxxors", color:"#F5B700", wins:0, losses:0, streak:"-", last10:"0-0", runsFor:0, runsAgainst:0 },
+      { id:"FL7", name:"Floor 7",     color:"#4FA97A", wins:0, losses:0, streak:"-", last10:"0-0", runsFor:0, runsAgainst:0 },
+      { id:"SPR", name:"Spirits",     color:"#8AA6C1", wins:0, losses:0, streak:"-", last10:"0-0", runsFor:0, runsAgainst:0 },
+      { id:"BCP", name:"BCP",         color:"#D64545", wins:0, losses:0, streak:"-", last10:"0-0", runsFor:0, runsAgainst:0 },
+    ],
+    batters: [],
+    pitchers: [],
+    attributes: [],
+    games: [],
+    awards: [],
+    weekly: {
+      player:  { name:"", team:"", stat:"" },
+      pitcher: { name:"", team:"", stat:"" },
+    },
+    records: [],
+  },
 
   s2po: {
     label: "Season 2 Playoffs",
@@ -3459,18 +3486,22 @@ function seededRandom(seedStr){
   return (h % 100000) / 100000;
 }
 
-// YYYY-MM-DD for the viewer's local calendar day. The comment above this
-// section always promised "changes at midnight local time", but the date
-// key used to be built with toISOString(), which is UTC — so the pick was
-// actually flipping at UTC midnight (mid-afternoon/evening for US viewers),
-// not local midnight. This is what the "date" in highlightOfDayCache and
-// HIGHLIGHT_OF_DAY_KEY should always be keyed on.
-function localDateKey(d){
+// YYYY-MM-DD for the current calendar day in the league's home timezone
+// (America/Los_Angeles, i.e. PST/PDT). The pick is shared across every
+// viewer via HIGHLIGHT_OF_DAY_KEY, so it needs to flip at the same wall-clock
+// moment for everyone — that only works if the date key is anchored to one
+// fixed timezone rather than each viewer's own local time. Two previous
+// versions got this wrong: toISOString() keyed on UTC midnight, and a later
+// fix keyed on the viewer's own local midnight (so it flipped at a different
+// real-world moment depending on where the viewer was). Intl's timeZone
+// option accounts for PST/PDT automatically, so this stays correct across
+// daylight saving.
+function pstDateKey(d){
   const dt = d || new Date();
-  const y = dt.getFullYear();
-  const m = String(dt.getMonth()+1).padStart(2,"0");
-  const day = String(dt.getDate()).padStart(2,"0");
-  return `${y}-${m}-${day}`;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(dt);
 }
 
 let highlightOfDayCache = { date:null, entry:null };
@@ -3487,7 +3518,7 @@ let highlightOfDayCache = { date:null, entry:null };
 async function renderHighlightOfDay(){
   const wrap = document.getElementById("highlightOfDayWrap");
   if(!wrap) return;
-  const todayKey = localDateKey();
+  const todayKey = pstDateKey();
   if(highlightOfDayCache.date === todayKey){
     paintHighlightOfDay(highlightOfDayCache.entry);
     return;
@@ -4438,6 +4469,18 @@ async function saveDraftTeamNames(){
 }
 
 const draftPanel = document.getElementById("panel-draft");
+
+// Double-click (or double-tap) a chip to open that player's profile instead
+// of drafting them. Runs ahead of the single-click select/move handler below
+// and clears any pending selection so the profile-opening click doesn't also
+// half-complete a draft move.
+draftPanel.addEventListener("dblclick", e=>{
+  const chip = e.target.closest(".draft-chip");
+  if(!chip) return;
+  if(e.target.closest("[data-remove-player]")) return;
+  draftSelectedPlayer = null;
+  openPlayerPage(chip.dataset.player);
+});
 
 // Click handling: tap a chip to select it (or deselect if tapped again),
 // then tap a team box (or the pool) to move it there. Works on touch
