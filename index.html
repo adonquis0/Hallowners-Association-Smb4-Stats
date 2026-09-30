@@ -751,11 +751,8 @@
   }
   .draft-team-grid{
     display:grid;
-    grid-template-columns:repeat(3, 1fr);
+    grid-template-columns:repeat(2, minmax(0, 1fr));
     gap:16px;
-  }
-  @media (max-width:760px){
-    .draft-team-grid{grid-template-columns:repeat(2, 1fr);}
   }
   @media (max-width:520px){
     .draft-team-grid{grid-template-columns:1fr;}
@@ -766,8 +763,10 @@
     border-top:3px solid var(--gold);
     display:flex;
     flex-direction:column;
-    min-height:180px;
+    height:320px;
+    overflow:hidden;
   }
+  .draft-team-box.full .draft-team-box-header{color:var(--gold);}
   .draft-team-box.drag-over{
     border-top-color:var(--cream);
     background:var(--navy-700);
@@ -780,14 +779,26 @@
     padding:10px 12px;
     border-bottom:1px solid var(--hairline);
     color:var(--cream);
+    flex:none;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+  }
+  .draft-team-count{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--cream-dim);
+    letter-spacing:0.5px;
   }
   .draft-team-box-body{
     flex:1;
+    min-height:0;
+    overflow-y:auto;
     display:flex;
     flex-direction:column;
     gap:6px;
     padding:10px;
-    min-height:120px;
   }
   .draft-empty-note{
     color:var(--cream-dim);
@@ -814,6 +825,25 @@
   }
   .draft-chip-name{flex:1; color:var(--cream); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .draft-chip-pos{color:var(--cream-dim); font-size:10px;}
+  .draft-chip .ovr-badge{flex:none; font-size:10px; padding:1px 5px;}
+  .draft-chip-profile{
+    background:transparent;
+    border:1px solid var(--hairline);
+    color:var(--cream-dim);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    line-height:1;
+    cursor:pointer;
+    padding:3px 5px;
+    flex:none;
+  }
+  .draft-chip-profile:hover{color:var(--gold); border-color:var(--gold);}
+  #loadingBar{
+    position:fixed; top:0; left:0; right:0; z-index:9999;
+    background:var(--gold); color:var(--navy-950);
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:1px;
+    text-transform:uppercase; text-align:center; padding:4px 0;
+  }
   .draft-chip-remove{
     background:transparent;
     border:none;
@@ -1304,6 +1334,7 @@
 </style>
 </head>
 <body>
+<div id="loadingBar">Loading league data&hellip;</div>
 
 <div class="marquee">
   <div class="marquee-top">
@@ -1446,7 +1477,8 @@
 
   <section class="panel" id="panel-draft">
     <h2 class="section-title">Draft</h2>
-    <p style="color:var(--cream-dim); font-size:13px; margin-top:-8px;">Click a player, then click a team box to draft them &mdash; or drag and drop. Anyone can move players; team names are set from the Admin tab.</p>
+    <p style="color:var(--cream-dim); font-size:13px; margin-top:-8px;">Click a player, then click a team box to draft them &mdash; or drag and drop. Anyone can move players; team names are set from the Admin tab. Rosters cap at 22 players.</p>
+    <div class="import-status" id="draftNotice"></div>
     <div class="draft-layout">
       <div class="draft-pool-col">
         <h3 class="sub-title">Available Players</h3>
@@ -3685,18 +3717,40 @@ let overlayPlayerName = null;
 let highlightViewIndex = 0;
 let currentHighlightsList = [];
 
+// Seasons where teams haven't been settled yet — a player's team shows as a
+// dash on their profile while that season is the one being viewed.
+const DASH_TEAM_SEASONS = ["s3"];
+
 function openPlayerPage(name){
   highlightViewIndex = 0;
   const { battingRows, pitchingRows } = getPlayerCareer(name);
-  if(!battingRows.length && !pitchingRows.length) return;
-  const latest = battingRows[battingRows.length-1] || pitchingRows[pitchingRows.length-1];
+  const attrs = getPlayerLatestAttributes(name);
+  // Anyone on file gets a profile — stats rows OR an attributes row is enough
+  // (new-season players have ratings but no stats yet).
+  if(!battingRows.length && !pitchingRows.length && !attrs) return;
+  const latest = battingRows[battingRows.length-1] || pitchingRows[pitchingRows.length-1] || attrs;
+
+  const inSeason = id=>{
+    const se = SEASONS[id];
+    return (se.attributes||[]).some(a=>a.name===name)
+      || se.batters.some(b=>b.name===name)
+      || se.pitchers.some(pp=>pp.name===name);
+  };
+  const profileSeasonId = inSeason(state.season) ? state.season : latest.seasonId;
+  const dashTeam = DASH_TEAM_SEASONS.includes(profileSeasonId);
+
+  const seasonCount = new Set([
+    ...battingRows, ...pitchingRows
+  ].filter(r=>!r.isPlayoff).map(r=>r.seasonId).concat(
+    SEASON_IDS.filter(id=>(SEASONS[id].attributes||[]).some(a=>a.name===name))
+  )).size;
 
   document.getElementById("playerName").textContent = name;
   document.getElementById("playerMeta").innerHTML =
-    `${teamTag(latest.team)} ${teamName(latest.team)} &middot; ${latest.pos||""} &middot; ${battingRows.length+pitchingRows.length>0?(new Set([...battingRows,...pitchingRows].filter(r=>!r.isPlayoff).map(r=>r.seasonId))).size:0} season(s) on record`;
+    `${dashTeam ? teamTag("\u2013") : `${teamTag(latest.team)} ${teamName(latest.team)}`} &middot; ${latest.pos||(attrs&&attrs.pos)||""} &middot; ${seasonCount} season(s) on record`;
 
   overlayPlayerName = name;
-  const avatarTeam = teamById()[latest.team];
+  const avatarTeam = dashTeam ? null : teamById()[latest.team];
   const avatarEl = document.getElementById("playerAvatar");
   avatarEl.textContent = initials(name);
   avatarEl.style.borderColor = avatarTeam ? avatarTeam.color : "var(--gold)";
@@ -4162,7 +4216,11 @@ document.getElementById("playersHeadRow").addEventListener("click", e=>{
    CSV IMPORT + PERSISTENCE
    ========================================================================= */
 
+// Stays false until loadFromStorage() finishes, so the built-in sample data
+// is never painted while the real data is still on its way.
+let dataLoaded = false;
 function renderAll(){
+  if(!dataLoaded) return;
   renderSeasonSelect();
   renderWeekly();
   renderStandings();
@@ -4410,15 +4468,38 @@ async function saveAdminHistoryEditor(){
    same board. Only the 6 box names are admin-gated. */
 
 let draftSelectedPlayer = null;
+const DRAFT_ROSTER_CAP = 22;
+
+function draftSlotCount(slot, exceptName){
+  const a = draftAssignmentsObj();
+  return Object.keys(a).filter(n=> a[n]===slot && n!==exceptName).length;
+}
+// Moves a player into a team box unless that team is already at the cap.
+// Returns true if the move happened.
+function tryAssignDraft(name, slot){
+  const notice = document.getElementById("draftNotice");
+  if(draftSlotCount(slot, name) >= DRAFT_ROSTER_CAP){
+    const tn = draftTeamNamesArr()[slot] || ("Team "+(slot+1));
+    if(notice) setStatus(notice, `${tn} is full (${DRAFT_ROSTER_CAP} players max).`, true);
+    return false;
+  }
+  if(notice) setStatus(notice, "", false);
+  draftAssignmentsObj()[name] = slot;
+  return true;
+}
 
 function draftChipHtml(name, assigned){
   const p = attributesArr().find(x=>x.name===name);
   const posLabel = p ? (p.pos||"") : "";
   const selectedClass = draftSelectedPlayer===name ? " selected" : "";
+  const profileBtn = `<button type="button" class="draft-chip-profile" data-open-profile="${escapeAttr(name)}" title="Open profile">i</button>`;
+  const ovrBit = (p && p.ovr) ? ovrBadge(p.ovr) : "";
   const removeBtn = assigned ? `<button type="button" class="draft-chip-remove" data-remove-player="${escapeAttr(name)}" title="Return to pool">&times;</button>` : "";
   return `<div class="draft-chip${selectedClass}" draggable="true" data-player="${escapeAttr(name)}">
     <span class="draft-chip-name">${escapeHtml(name)}</span>
+    ${ovrBit}
     ${posLabel?`<span class="draft-chip-pos">${escapeHtml(posLabel)}</span>`:""}
+    ${profileBtn}
     ${removeBtn}
   </div>`;
 }
@@ -4438,8 +4519,8 @@ function renderDraftPage(){
 
   boxesEl.innerHTML = teamNames.map((teamName, slot)=>{
     const picks = Object.keys(assignments).filter(n=> assignments[n]===slot).sort();
-    return `<div class="draft-team-box" data-slot="${slot}">
-      <div class="draft-team-box-header">${escapeHtml(teamName || ("Team "+(slot+1)))}</div>
+    return `<div class="draft-team-box${picks.length>=DRAFT_ROSTER_CAP?" full":""}" data-slot="${slot}">
+      <div class="draft-team-box-header"><span>${escapeHtml(teamName || ("Team "+(slot+1)))}</span><span class="draft-team-count">${picks.length}/${DRAFT_ROSTER_CAP}</span></div>
       <div class="draft-team-box-body" data-slot="${slot}">
         ${picks.length ? picks.map(n=>draftChipHtml(n,true)).join("") : `<div class="draft-empty-note">Drop players here</div>`}
       </div>
@@ -4477,7 +4558,7 @@ const draftPanel = document.getElementById("panel-draft");
 draftPanel.addEventListener("dblclick", e=>{
   const chip = e.target.closest(".draft-chip");
   if(!chip) return;
-  if(e.target.closest("[data-remove-player]")) return;
+  if(e.target.closest("[data-remove-player], [data-open-profile]")) return;
   draftSelectedPlayer = null;
   openPlayerPage(chip.dataset.player);
 });
@@ -4486,6 +4567,11 @@ draftPanel.addEventListener("dblclick", e=>{
 // then tap a team box (or the pool) to move it there. Works on touch
 // devices where native HTML5 drag-and-drop doesn't.
 draftPanel.addEventListener("click", async e=>{
+  const profileBtn = e.target.closest("[data-open-profile]");
+  if(profileBtn){
+    openPlayerPage(profileBtn.dataset.openProfile);
+    return;
+  }
   const removeBtn = e.target.closest("[data-remove-player]");
   if(removeBtn){
     delete draftAssignmentsObj()[removeBtn.dataset.removePlayer];
@@ -4503,9 +4589,11 @@ draftPanel.addEventListener("click", async e=>{
   if(!draftSelectedPlayer) return;
   const box = e.target.closest(".draft-team-box");
   if(box){
-    draftAssignmentsObj()[draftSelectedPlayer] = Number(box.dataset.slot);
-    draftSelectedPlayer = null;
-    await saveDraftAssignments();
+    const moved = tryAssignDraft(draftSelectedPlayer, Number(box.dataset.slot));
+    if(moved){
+      draftSelectedPlayer = null;
+      await saveDraftAssignments();
+    }
     renderDraftPage();
     return;
   }
@@ -4542,8 +4630,9 @@ draftPanel.addEventListener("drop", async e=>{
   document.querySelectorAll(".draft-team-box.drag-over, #draftPool.drag-over").forEach(el=>el.classList.remove("drag-over"));
   const name = e.dataTransfer.getData("text/plain");
   if(!name) return;
-  if(box) draftAssignmentsObj()[name] = Number(box.dataset.slot);
-  else delete draftAssignmentsObj()[name];
+  if(box){
+    if(!tryAssignDraft(name, Number(box.dataset.slot))){ renderDraftPage(); return; }
+  }else delete draftAssignmentsObj()[name];
   draftSelectedPlayer = null;
   await saveDraftAssignments();
   renderDraftPage();
@@ -5109,84 +5198,52 @@ document.getElementById("resetData").addEventListener("click", async ()=>{
 
 async function loadFromStorage(){
   if(!window.storage) return;
-  for(const id of STORAGE_SEASON_IDS){
+  // Every key for every season is fetched at once instead of one round trip
+  // at a time, so load time is roughly one Firestore read, not ~40 in a row.
+  const read = async key=>{
     try{
-      const t = await window.storage.get(`teams_${id}`);
-      if(t && t.value){ const parsed = JSON.parse(t.value); SEASONS[id].teams.length=0; SEASONS[id].teams.push(...parsed); }
-    }catch(e){}
-    try{
-      const b = await window.storage.get(`batters_${id}`);
-      if(b && b.value){ const parsed = JSON.parse(b.value); SEASONS[id].batters.length=0; SEASONS[id].batters.push(...parsed); }
-    }catch(e){}
-    try{
-      const p = await window.storage.get(`pitchers_${id}`);
-      if(p && p.value){ const parsed = JSON.parse(p.value); SEASONS[id].pitchers.length=0; SEASONS[id].pitchers.push(...parsed); }
-    }catch(e){}
-    try{
-      const a = await window.storage.get(`attributes_${id}`);
-      if(a && a.value){
-        if(!SEASONS[id].attributes) SEASONS[id].attributes = [];
-        const parsed = JSON.parse(a.value);
-        SEASONS[id].attributes.length=0; SEASONS[id].attributes.push(...parsed);
-      }
-    }catch(e){}
-    try{
-      const g = await window.storage.get(`games_${id}`);
-      if(g && g.value){
-        if(!SEASONS[id].games) SEASONS[id].games = [];
-        const parsed = JSON.parse(g.value);
-        SEASONS[id].games.length=0; SEASONS[id].games.push(...parsed);
-      }
-    }catch(e){}
-    try{
-      const w = await window.storage.get(`weekly_${id}`);
-      if(w && w.value){
-        const parsed = JSON.parse(w.value);
-        SEASONS[id].weekly = {
-          player: parsed.player || {name:"",team:"",stat:""},
-          pitcher: parsed.pitcher || {name:"",team:"",stat:""},
+      const r = await window.storage.get(key);
+      return (r && r.value) ? JSON.parse(r.value) : null;
+    }catch(e){ return null; }
+  };
+  const fill = (arr, parsed)=>{ arr.length=0; arr.push(...parsed); };
+  const KEYS = ["teams","batters","pitchers","attributes","games","weekly","records","awards","draftAssignments","draftTeamNames"];
+
+  await Promise.all([
+    ...STORAGE_SEASON_IDS.map(async id=>{
+      const S = SEASONS[id];
+      const [t,b,p,a,g,w,r,aw,da,dn] = await Promise.all(KEYS.map(k=>read(`${k}_${id}`)));
+      if(t) fill(S.teams, t);
+      if(b) fill(S.batters, b);
+      if(p) fill(S.pitchers, p);
+      if(a){ if(!S.attributes) S.attributes = []; fill(S.attributes, a); }
+      if(g){ if(!S.games) S.games = []; fill(S.games, g); }
+      if(w){
+        S.weekly = {
+          player: w.player || {name:"",team:"",stat:""},
+          pitcher: w.pitcher || {name:"",team:"",stat:""},
         };
       }
-    }catch(e){}
-    try{
-      const r = await window.storage.get(`records_${id}`);
-      if(r && r.value){
-        if(!SEASONS[id].records) SEASONS[id].records = [];
-        const parsed = JSON.parse(r.value);
-        SEASONS[id].records.length=0; SEASONS[id].records.push(...parsed);
-      }
-    }catch(e){}
-    try{
-      const aw = await window.storage.get(`awards_${id}`);
-      if(aw && aw.value){
-        if(!SEASONS[id].awards) SEASONS[id].awards = [];
-        const parsed = JSON.parse(aw.value);
-        SEASONS[id].awards.length=0; SEASONS[id].awards.push(...parsed);
-      }
-    }catch(e){}
-    try{
-      const da = await window.storage.get(`draftAssignments_${id}`);
-      if(da && da.value) SEASONS[id].draftAssignments = JSON.parse(da.value);
-    }catch(e){}
-    try{
-      const dn = await window.storage.get(`draftTeamNames_${id}`);
-      if(dn && dn.value) SEASONS[id].draftTeamNames = JSON.parse(dn.value);
-    }catch(e){}
-  }
-  try{
-    const h = await window.storage.get("history");
-    if(h && h.value){
-      const parsed = JSON.parse(h.value);
-      HISTORY.length = 0; HISTORY.push(...parsed);
-    }
-  }catch(e){}
+      if(r){ if(!S.records) S.records = []; fill(S.records, r); }
+      if(aw){ if(!S.awards) S.awards = []; fill(S.awards, aw); }
+      if(da) S.draftAssignments = da;
+      if(dn) S.draftTeamNames = dn;
+    }),
+    read("history").then(h=>{ if(h) fill(HISTORY, h); }),
+  ]);
 }
 
 /* ---------- init ---------- */
 setAdminUiVisible(false);
 (async function init(){
-  await loadFromStorage();
-  renderAll();
+  try{
+    await loadFromStorage();
+  }finally{
+    dataLoaded = true;
+    const bar = document.getElementById("loadingBar");
+    if(bar) bar.remove();
+    renderAll();
+  }
 })();
 </script>
 </body>
