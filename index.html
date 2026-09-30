@@ -819,6 +819,9 @@
     font-size:12px;
   }
   .draft-chip:active{cursor:grabbing;}
+  .draft-chip.search-match{
+    border-color:var(--cream);
+  }
   .draft-chip.selected{
     border-color:var(--gold);
     background:rgba(245,183,0,0.1);
@@ -1482,6 +1485,7 @@
     <div class="draft-layout">
       <div class="draft-pool-col">
         <h3 class="sub-title">Available Players</h3>
+        <input type="text" class="table-search-input" id="draftSearchInput" placeholder="Search players&hellip;" style="width:100%; margin-bottom:8px; box-sizing:border-box;">
         <div class="draft-pool" id="draftPool"></div>
       </div>
       <div class="draft-teams-col">
@@ -1713,7 +1717,7 @@
 
     <div class="import-block">
       <h4>Player Attributes</h4>
-      <p>Columns: name, team (id), pos, pos2, pow, con, spd, fld, arm, vel, jnk, acc, arsenal (pipe- or comma-separated, e.g. 4F/SL/CF), bat, thr, age, chem, trait1, trait1Tier (plus/neutral/minus), trait2, trait2Tier, ovr</p>
+      <p>Columns: name, team (id), pos, pos2, pow, con, spd, fld, arm, vel, jnk, acc, arsenal (pipe- or comma-separated, e.g. 4F/SL/CF), bat, thr, age, chem, trait1, trait2, ovr</p>
       <div class="import-row">
         <label class="file-btn">Choose CSV<input type="file" accept=".csv" id="attributesFile" style="display:none;"></label>
         <button class="template-link" id="attributesTemplate">Download template</button>
@@ -2248,7 +2252,7 @@ function renderWeekly(){
       <div class="weekly-card-photo" data-photo-name="${escapeAttr(p.name)}" style="border-color:${team?team.color:"var(--gold)"}">${initials(p.name)}</div>
       <div>
         <div class="weekly-card-label">${c.label}</div>
-        <div class="weekly-card-name">${p.name}</div>
+        <div class="weekly-card-name">${escapeHtml(p.name)}</div>
         <div class="weekly-card-stat">${team ? `${teamTag(p.team)} ${team.name}` : ""}${team && p.stat ? " &middot; " : ""}${p.stat||""}</div>
       </div>
     </div>`;
@@ -2309,7 +2313,7 @@ function renderLeaders(){
     <div class="leader-card">
       <div class="stat-label">${c.label}</div>
       <div class="stat-value">${c.value}</div>
-      <div class="stat-name">${c.name ? `${teamTag(c.team)} <a class="player-link" data-name="${escapeAttr(c.name)}">${c.name}</a>` : "No qualifiers"}</div>
+      <div class="stat-name">${c.name ? `${teamTag(c.team)} <a class="player-link" data-name="${escapeAttr(c.name)}">${escapeHtml(c.name)}</a>` : "No qualifiers"}</div>
     </div>
   `).join("");
 }
@@ -2456,7 +2460,7 @@ function renderPlayersBody(){
     <tr>
       ${cols.map(c=>{
         let v = p[c.key];
-        if(c.key==="name") return `<td><a class="player-link" data-name="${escapeAttr(p.name)}">${p.name}</a></td>`;
+        if(c.key==="name") return `<td><a class="player-link" data-name="${escapeAttr(p.name)}">${escapeHtml(p.name)}</a></td>`;
         if(c.key==="team") return `<td>${teamTag(v)}</td>`;
         if(c.fmt) v = c.fmt(v);
         return `<td>${v}</td>`;
@@ -2592,7 +2596,7 @@ function chemBadge(code){
 }
 function traitPill(name, tier){
   if(!name) return "";
-  return `<span class="trait-pill ${tier}">${name}</span>`;
+  return `<span class="trait-pill ${tier||"neutral"}">${escapeHtml(name)}</span>`;
 }
 function arsenalCell(list){
   if(!list || !list.length) return `<div class="rating-cell rating-empty">&ndash;</div>`;
@@ -2737,7 +2741,7 @@ function renderAttributesHead(){
 }
 
 function attrCellHtml(p, col){
-  if(col.key==="name") return `<td><a class="player-link" data-name="${escapeAttr(p.name)}">${p.name}</a></td>`;
+  if(col.key==="name") return `<td><a class="player-link" data-name="${escapeAttr(p.name)}">${escapeHtml(p.name)}</a></td>`;
   if(col.render) return `<td${col.cellClass?` class="${col.cellClass}"`:""}>${col.render(p)}</td>`;
   const v = p[col.key];
   return `<td>${(v===null||v===undefined||v==="") ? "&ndash;" : v}</td>`;
@@ -2955,7 +2959,7 @@ function renderRecords(){
       ${avatar}
       <div class="record-info">
         <div class="record-stat-name">${r.stat}</div>
-        <div class="record-holder">${r.name||"&mdash;"}${team ? ` &middot; <img class="team-logo" data-logo-team="${escapeAttr(r.team)}" alt="">${teamTag(r.team)}` : ""}</div>
+        <div class="record-holder">${r.name?escapeHtml(r.name):"&mdash;"}${team ? ` &middot; <img class="team-logo" data-logo-team="${escapeAttr(r.team)}" alt="">${teamTag(r.team)}` : ""}</div>
       </div>
       <div class="record-value">${r.value}</div>
     </div>`;
@@ -2996,7 +3000,7 @@ function renderHistory(){
   document.getElementById("awardsGrid").innerHTML = awardsArr().map(a=>`
     <div class="award-card">
       <div class="award-name">${a.name}</div>
-      <div class="award-winner">${a.winner}</div>
+      <div class="award-winner">${escapeHtml(a.winner)}</div>
       <div class="award-detail">${teamName(a.team)}${a.detail ? " &middot; "+a.detail : ""}</div>
     </div>
   `).join("");
@@ -3821,7 +3825,7 @@ function openPlayerPage(name){
       ${playerAwards.map(a=>`
         <div class="award-card">
           <div class="award-name">${a.seasonLabel} &middot; ${a.name}</div>
-          <div class="award-winner">${a.winner}</div>
+          <div class="award-winner">${escapeHtml(a.winner)}</div>
           ${a.detail ? `<div class="award-detail">${a.detail}</div>` : ""}
         </div>
       `).join("")}
@@ -4468,6 +4472,7 @@ async function saveAdminHistoryEditor(){
    same board. Only the 6 box names are admin-gated. */
 
 let draftSelectedPlayer = null;
+let draftSearchQuery = "";
 const DRAFT_ROSTER_CAP = 22;
 
 function draftSlotCount(slot, exceptName){
@@ -4491,7 +4496,8 @@ function tryAssignDraft(name, slot){
 function draftChipHtml(name, assigned){
   const p = attributesArr().find(x=>x.name===name);
   const posLabel = p ? (p.pos||"") : "";
-  const selectedClass = draftSelectedPlayer===name ? " selected" : "";
+  const selectedClass = (draftSelectedPlayer===name ? " selected" : "")
+    + (draftSearchQuery && name.toLowerCase().includes(draftSearchQuery) ? " search-match" : "");
   const profileBtn = `<button type="button" class="draft-chip-profile" data-open-profile="${escapeAttr(name)}" title="Open profile">i</button>`;
   const ovrBit = (p && p.ovr) ? ovrBadge(p.ovr) : "";
   const removeBtn = assigned ? `<button type="button" class="draft-chip-remove" data-remove-player="${escapeAttr(name)}" title="Return to pool">&times;</button>` : "";
@@ -4511,11 +4517,12 @@ function renderDraftPage(){
 
   const assignments = draftAssignmentsObj();
   const teamNames = draftTeamNamesArr();
-  const pool = draftPoolPlayers().filter(n=> assignments[n]===undefined);
+  const undrafted = draftPoolPlayers().filter(n=> assignments[n]===undefined);
+  const pool = draftSearchQuery ? undrafted.filter(n=>n.toLowerCase().includes(draftSearchQuery)) : undrafted;
 
   poolEl.innerHTML = pool.length
     ? pool.map(n=>draftChipHtml(n,false)).join("")
-    : `<div class="draft-empty-note">${attributesArr().length ? "All players have been drafted." : "No players on file yet for this season \u2014 import attributes on the Admin tab."}</div>`;
+    : `<div class="draft-empty-note">${draftSearchQuery && undrafted.length ? "No undrafted players match that search." : attributesArr().length ? "All players have been drafted." : "No players on file yet for this season \u2014 import attributes on the Admin tab."}</div>`;
 
   boxesEl.innerHTML = teamNames.map((teamName, slot)=>{
     const picks = Object.keys(assignments).filter(n=> assignments[n]===slot).sort();
@@ -4550,6 +4557,13 @@ async function saveDraftTeamNames(){
 }
 
 const draftPanel = document.getElementById("panel-draft");
+
+// Search filters the Available Players list; drafted players matching the
+// search are outlined inside their team boxes.
+document.getElementById("draftSearchInput").addEventListener("input", e=>{
+  draftSearchQuery = e.target.value.trim().toLowerCase();
+  renderDraftPage();
+});
 
 // Double-click (or double-tap) a chip to open that player's profile instead
 // of drafting them. Runs ahead of the single-click select/move handler below
@@ -4968,7 +4982,7 @@ document.getElementById("attributesTemplate").addEventListener("click", ()=>{
     pow:p.pow, con:p.con, spd:p.spd, fld:p.fld, arm:p.arm,
     vel:p.vel, jnk:p.jnk, acc:p.acc, arsenal:(p.arsenal||[]).join("/"),
     bat:p.bat, thr:p.thr, age:p.age, chem:p.chem,
-    trait1:p.trait1, trait1Tier:p.trait1Tier, trait2:p.trait2, trait2Tier:p.trait2Tier, ovr:p.ovr
+    trait1:p.trait1, trait2:p.trait2, ovr:p.ovr
   })));
 });
 
@@ -5045,8 +5059,7 @@ function mapAttributeRow(r){
     arsenal: r.arsenal ? String(r.arsenal).split(/[,/|]+/).map(s=>s.trim()).filter(Boolean) : [],
     bat:r.bat||"", thr:r.thr||"", age:Number(r.age)||0,
     chem:r.chem||"",
-    trait1:r.trait1||"", trait1Tier:r.trait1Tier||"neutral",
-    trait2:r.trait2||"", trait2Tier:r.trait2Tier||"neutral",
+    trait1:r.trait1||"", trait2:r.trait2||"",
     ovr:r.ovr||""
   };
 }
