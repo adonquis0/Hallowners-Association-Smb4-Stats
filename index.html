@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Hallowners Association Smb4 Stats</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
@@ -25,6 +25,16 @@
     --hairline: rgba(241,236,218,0.12);
   }
   *{box-sizing:border-box;}
+  /* Anton only ships one weight; default-bold headings got smeared faux-bold. */
+  h1,h2,h3,h4,h5,h6{font-weight:400;}
+  strong,b{font-weight:600; color:var(--cream);}
+  thead th{font-weight:600;}
+  #teamLoginPop{
+    display:none; position:fixed; top:56px; right:12px; z-index:2000;
+    background:var(--navy-800); border:1px solid var(--gold); padding:12px;
+    flex-direction:column; gap:8px; width:230px; box-shadow:0 8px 24px rgba(0,0,0,0.5);
+  }
+  #teamLoginPop.open{display:flex;}
   body{
     margin:0;
     background:var(--navy-950);
@@ -1345,10 +1355,17 @@
     <div class="marquee-controls">
       <select class="season-select" id="seasonSelect"></select>
       <button class="season-select" id="adminPreviewToggleBtn" style="display:none; background:transparent; color:var(--gold); border-color:var(--gold);">View as Visitor</button>
+      <button class="season-select" id="teamLoginBtn" style="background:transparent; color:var(--gold); border-color:var(--gold);">Team Login</button>
       <button class="season-select" id="adminSignInBtn" style="background:transparent; color:var(--gold); border-color:var(--gold);">Admin</button>
     </div>
   </div>
   <div class="weekly-strip" id="weeklyStrip"></div>
+</div>
+<div id="teamLoginPop">
+  <input type="text" id="draftLoginUser" class="sheet-url-input" placeholder="Username" autocomplete="username">
+  <input type="password" id="draftLoginPass" class="sheet-url-input" placeholder="Password" autocomplete="current-password">
+  <button class="file-btn" id="draftLoginBtn" type="button">Log In</button>
+  <div class="import-status" id="teamLoginMsg"></div>
 </div>
 
 <nav class="tabs" id="tabs">
@@ -1480,8 +1497,8 @@
 
   <section class="panel" id="panel-draft">
     <h2 class="section-title">Draft</h2>
-    <p style="color:var(--cream-dim); font-size:13px; margin-top:-8px;">Log in with your team account, then click a player and click your team box to draft them &mdash; or drag and drop. You can only edit your own team's draft; everyone can view all boards. Team names are set from the Admin tab. Rosters cap at 22 players.</p>
-    <div id="draftLoginBar" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:10px 0 14px;"></div>
+    <p style="color:var(--cream-dim); font-size:13px; margin-top:-8px;">Log in with the Team Login button at the top, then click a player and click your team box to draft them &mdash; or drag and drop. You can only edit your own team's draft; everyone can view all boards. Team names are set from the Admin tab. Rosters cap at 22 players.</p>
+    <div id="draftLoginBar" style="color:var(--cream); font-size:13px; margin:10px 0 14px;"></div>
     <div class="import-status" id="draftNotice"></div>
     <div class="draft-layout">
       <div class="draft-pool-col">
@@ -4510,46 +4527,50 @@ function denyDraft(){
   setStatus(notice, `You can only edit your own team's draft (${tn}).`, true);
 }
 
-let draftLoginSig = null;
 function renderDraftLogin(){
+  const btn = document.getElementById("teamLoginBtn");
+  if(btn) btn.textContent = draftUser ? `Log Out (${draftUser.username})` : "Team Login";
   const bar = document.getElementById("draftLoginBar");
   if(!bar) return;
-  const sig = draftUser ? ("in:"+draftUser.username+":"+(draftTeamNamesArr()[draftUser.slot]||"")) : "out";
-  if(sig===draftLoginSig) return;
-  draftLoginSig = sig;
   if(draftUser){
     const tn = draftTeamNamesArr()[draftUser.slot] || ("Team "+(draftUser.slot+1));
-    bar.innerHTML = `<span style="color:var(--cream); font-size:13px;">Logged in as <strong>${escapeHtml(draftUser.username)}</strong> &mdash; ${escapeHtml(tn)}</span>
-      <button class="file-btn" id="draftLogoutBtn" type="button">Log Out</button>`;
-    document.getElementById("draftLogoutBtn").addEventListener("click", ()=>{
+    bar.textContent = `Logged in as ${draftUser.username} \u2014 ${tn}. You can edit this team's draft only.`;
+  }else{
+    bar.textContent = "Not logged in \u2014 use Team Login at the top to draft.";
+  }
+}
+(function(){
+  const pop = document.getElementById("teamLoginPop");
+  const msg = document.getElementById("teamLoginMsg");
+  const doLogin = ()=>{
+    const u = document.getElementById("draftLoginUser").value.trim().toLowerCase();
+    const pw = document.getElementById("draftLoginPass").value;
+    const acct = DRAFT_LOGINS[u];
+    if(!acct || acct.pass!==pw){ setStatus(msg, "Wrong username or password.", true); return; }
+    draftUser = {username:u, slot:acct.slot};
+    try{ sessionStorage.setItem("draftUser", JSON.stringify({username:u})); }catch(e){}
+    document.getElementById("draftLoginPass").value = "";
+    setStatus(msg, "", false);
+    pop.classList.remove("open");
+    renderDraftPage();
+  };
+  document.getElementById("teamLoginBtn").addEventListener("click", ()=>{
+    if(draftUser){
       draftUser = null; draftSelectedPlayer = null;
       try{ sessionStorage.removeItem("draftUser"); }catch(e){}
       renderDraftPage();
-    });
-  }else{
-    bar.innerHTML = `<input type="text" id="draftLoginUser" class="sheet-url-input" placeholder="Username" autocomplete="username" style="max-width:160px;">
-      <input type="password" id="draftLoginPass" class="sheet-url-input" placeholder="Password" autocomplete="current-password" style="max-width:160px;">
-      <button class="file-btn" id="draftLoginBtn" type="button">Log In</button>`;
-    const doLogin = ()=>{
-      const u = document.getElementById("draftLoginUser").value.trim().toLowerCase();
-      const pw = document.getElementById("draftLoginPass").value;
-      const acct = DRAFT_LOGINS[u];
-      const notice = document.getElementById("draftNotice");
-      if(!acct || acct.pass!==pw){ setStatus(notice, "Wrong username or password.", true); return; }
-      draftUser = {username:u, slot:acct.slot};
-      try{ sessionStorage.setItem("draftUser", JSON.stringify({username:u})); }catch(e){}
-      setStatus(notice, "", false);
-      renderDraftPage();
-    };
-    document.getElementById("draftLoginBtn").addEventListener("click", doLogin);
-    document.getElementById("draftLoginPass").addEventListener("keydown", e=>{ if(e.key==="Enter") doLogin(); });
-  }
-}
+      return;
+    }
+    pop.classList.toggle("open");
+    if(pop.classList.contains("open")) document.getElementById("draftLoginUser").focus();
+  });
+  document.getElementById("draftLoginBtn").addEventListener("click", doLogin);
+  pop.addEventListener("keydown", e=>{
+    if(e.key==="Enter") doLogin();
+    if(e.key==="Escape") pop.classList.remove("open");
+  });
+})();
 
-function draftSlotCount(slot, exceptName){
-  const a = draftAssignmentsObj();
-  return Object.keys(a).filter(n=> a[n]===slot && n!==exceptName).length;
-}
 // Moves a player into a team box unless that team is already at the cap.
 // Returns true if the move happened.
 function tryAssignDraft(name, slot){
