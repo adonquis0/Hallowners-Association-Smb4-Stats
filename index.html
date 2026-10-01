@@ -12,22 +12,23 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <style>
   :root{
-    --navy-950:#150C20;
-    --navy-800:#20122F;
-    --navy-700:#2E1A44;
-    --navy-600:#40255C;
+    --navy-950:#07050B;
+    --navy-800:#0F0A16;
+    --navy-700:#1A1127;
+    --navy-600:#33204D;
     --cream:#EFE9F4;
-    --cream-dim:#B7A9C6;
+    --cream-dim:#B3A8C2;
     --gold:#FF7A1A;
     --gold-dim:#C95A08;
     --crimson:#D64545;
     --green:#4FA97A;
-    --hairline: rgba(239,233,244,0.12);
+    --hairline: rgba(150,105,215,0.24);
+    --violet:#8B5CD6;
   }
   *{box-sizing:border-box;}
   /* Team login popup */
   #teamLoginDialog{border:1px solid var(--gold); border-radius:10px; padding:0; background:var(--navy-800); color:var(--cream); width:min(420px, calc(100vw - 32px)); box-shadow:0 24px 60px rgba(0,0,0,0.55);}
-  #teamLoginDialog::backdrop{background:rgba(10,4,18,0.72); backdrop-filter:blur(3px);}
+  #teamLoginDialog::backdrop{background:rgba(3,2,6,0.8); backdrop-filter:blur(3px);}
   .team-login-inner{padding:26px 24px 22px;}
   .team-login-title{font-family:'Passion One',sans-serif; font-size:30px; line-height:1; margin:0 0 6px; color:var(--cream);}
   .team-login-sub{margin:0 0 18px; font-size:14px; color:var(--cream-dim);}
@@ -44,7 +45,7 @@
     margin:0;
     background:var(--navy-950);
     background-image:
-      radial-gradient(ellipse at top, rgba(64,37,92,0.55), transparent 60%),
+      radial-gradient(ellipse at top, rgba(110,60,170,0.28), transparent 60%),
       repeating-linear-gradient(180deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 3px);
     color:var(--cream);
     font-family:'Inter',sans-serif;
@@ -578,7 +579,7 @@
     display:none;
     position:fixed;
     inset:0;
-    background:rgba(21,12,32,0.92);
+    background:rgba(7,5,11,0.92);
     z-index:80;
     overflow-y:auto;
     padding:40px 20px 80px;
@@ -4547,8 +4548,14 @@ function draftRewindNotice(){
 function draftTeamLabel(slot){ return draftTeamNamesArr()[slot] || ("Team "+(slot+1)); }
 
 // Can this person pick up (select/drag) this player right now?
+// A team may take back its own pick until the next team picks, then choose again.
+function canUndoDraft(name){
+  const lp = SEASONS[state.season].draftLastPick;
+  return !!(draftUser && lp && lp.name===name && lp.slot===draftUser.slot && draftAssignmentsObj()[name]===draftUser.slot);
+}
 function canSelectDraft(name){
   if(effectiveAdmin()) return true;
+  if(canUndoDraft(name)) return true;
   if(!draftUser || draftAssignmentsObj()[name]!==undefined) return false;
   const c = draftOnClock();
   return !!c && c.slot===draftUser.slot;
@@ -4557,6 +4564,7 @@ function canSelectDraft(name){
 // undrafted player into their own box while on the clock; picks are final.
 function canMoveDraft(name, toSlot){
   if(effectiveAdmin()) return true;
+  if(toSlot===undefined && canUndoDraft(name)) return true;
   if(!draftUser || draftAssignmentsObj()[name]!==undefined) return false;
   const c = draftOnClock();
   return !!c && toSlot===draftUser.slot && c.slot===draftUser.slot;
@@ -4567,7 +4575,7 @@ function denyDraft(name, toSlot){
   const c = draftOnClock();
   let msg;
   if(!draftUser) msg = "Log in with Team Login (top right) to draft.";
-  else if(name!==undefined && draftAssignmentsObj()[name]!==undefined) msg = "Picks are final \u2014 ask the commissioner to change one.";
+  else if(name!==undefined && draftAssignmentsObj()[name]!==undefined) msg = "Picks are final once the next team picks \u2014 ask the commissioner to change one.";
   else if(!c) msg = "The draft is complete.";
   else if(toSlot!==undefined && toSlot!==draftUser.slot) msg = "You can only draft to your own team.";
   else msg = `It's not your pick \u2014 ${draftTeamLabel(c.slot)} is on the clock.`;
@@ -4615,7 +4623,14 @@ function tryAssignDraft(name, slot){
   }
   if(notice) setStatus(notice, "", false);
   draftAssignmentsObj()[name] = slot;
+  SEASONS[state.season].draftLastPick = {name, slot};
   return true;
+}
+
+function draftUnassign(name){
+  delete draftAssignmentsObj()[name];
+  const s = SEASONS[state.season];
+  if(s.draftLastPick && s.draftLastPick.name===name) s.draftLastPick = null;
 }
 
 function draftChipHtml(name, assigned){
@@ -4625,7 +4640,7 @@ function draftChipHtml(name, assigned){
     + (draftSearchQuery && name.toLowerCase().includes(draftSearchQuery) ? " search-match" : "");
   const profileBtn = `<button type="button" class="draft-chip-profile" data-open-profile="${escapeAttr(name)}" title="Open profile">i</button>`;
   const ovrBit = (p && p.ovr) ? ovrBadge(p.ovr) : "";
-  const removeBtn = (assigned && effectiveAdmin()) ? `<button type="button" class="draft-chip-remove" data-remove-player="${escapeAttr(name)}" title="Return to pool">&times;</button>` : "";
+  const removeBtn = (assigned && (effectiveAdmin() || canUndoDraft(name))) ? `<button type="button" class="draft-chip-remove" data-remove-player="${escapeAttr(name)}" title="${effectiveAdmin() ? "Return to pool" : "Undo pick"}">&times;</button>` : "";
   return `<div class="draft-chip${selectedClass}" draggable="${canSelectDraft(name)}" data-player="${escapeAttr(name)}">
     <span class="draft-chip-name">${escapeHtml(name)}</span>
     ${ovrBit}
@@ -4665,18 +4680,19 @@ function renderDraftPage(){
 async function saveDraftAssignments(){
   try{
     await window.storage.set(`draftAssignments_${state.season}`, JSON.stringify(draftAssignmentsObj()));
+    await window.storage.set(`draftAssignments_last_${state.season}`, JSON.stringify(SEASONS[state.season].draftLastPick || null));
   }catch(e){
     console.warn("draft save failed", e);
     const n = document.getElementById("draftNotice");
     if(n) setStatus(n, e && e.code==="permission-denied"
-      ? "Couldn't save \u2014 permission denied (Firestore rules must allow team accounts to write the draft)."
+      ? "Couldn't save \u2014 permission denied (Firestore rules must allow writes to draftAssignments_* without sign-in)."
       : "Couldn't save the pick: " + (e && e.message || e), true);
   }
 }
 
 // Live sync so every team sees picks (and whose turn it is) without reloading.
 SEASON_IDS.forEach(id=>{
-  [["draftAssignments","draftAssignments"],["draftTeamNames","draftTeamNames"]].forEach(([key,prop])=>{
+  [["draftAssignments","draftAssignments"],["draftAssignments_last","draftLastPick"],["draftTeamNames","draftTeamNames"]].forEach(([key,prop])=>{
     db.collection("kv").doc(`${key}_${id}`).onSnapshot(snap=>{
       if(!snap.exists) return;
       try{ SEASONS[id][prop] = JSON.parse(snap.data().value); }catch(e){ return; }
@@ -4735,7 +4751,7 @@ draftPanel.addEventListener("click", async e=>{
   const removeBtn = e.target.closest("[data-remove-player]");
   if(removeBtn){
     if(!canMoveDraft(removeBtn.dataset.removePlayer, undefined)){ denyDraft(removeBtn.dataset.removePlayer); return; }
-    delete draftAssignmentsObj()[removeBtn.dataset.removePlayer];
+    draftUnassign(removeBtn.dataset.removePlayer);
     await saveDraftAssignments();
     renderDraftPage();
     draftRewindNotice();
@@ -4763,7 +4779,7 @@ draftPanel.addEventListener("click", async e=>{
   if(e.target.closest("#draftPool")){
     if(draftAssignmentsObj()[draftSelectedPlayer]===undefined){ draftSelectedPlayer = null; renderDraftPage(); return; }
     if(!canMoveDraft(draftSelectedPlayer, undefined)){ denyDraft(draftSelectedPlayer); return; }
-    delete draftAssignmentsObj()[draftSelectedPlayer];
+    draftUnassign(draftSelectedPlayer);
     draftSelectedPlayer = null;
     await saveDraftAssignments();
     renderDraftPage();
@@ -4802,7 +4818,7 @@ draftPanel.addEventListener("drop", async e=>{
   }else{
     if(draftAssignmentsObj()[name]===undefined){ renderDraftPage(); return; }
     if(!canMoveDraft(name, undefined)){ denyDraft(name); return; }
-    delete draftAssignmentsObj()[name];
+    draftUnassign(name);
   }
   draftSelectedPlayer = null;
   await saveDraftAssignments();
@@ -4819,6 +4835,7 @@ document.getElementById("draftResetBtn").addEventListener("click", async ()=>{
   if(!confirm(`Clear every draft pick for ${SEASONS[state.season].label}? This can't be undone.`)) return;
   const s = SEASONS[state.season];
   s.draftAssignments = {};
+  s.draftLastPick = null;
   await saveDraftAssignments();
   renderDraftPage();
   setStatus(document.getElementById("draftAdminStatus"), "Draft cleared.", false);
@@ -5359,6 +5376,7 @@ document.getElementById("resetData").addEventListener("click", async ()=>{
         await window.storage.delete(`awards_${id}`).catch(()=>{});
         await window.storage.delete(`sheetUrls_${id}`).catch(()=>{});
         await window.storage.delete(`draftAssignments_${id}`).catch(()=>{});
+        await window.storage.delete(`draftAssignments_last_${id}`).catch(()=>{});
         await window.storage.delete(`draftTeamNames_${id}`).catch(()=>{});
       }
       await window.storage.delete("history").catch(()=>{});
