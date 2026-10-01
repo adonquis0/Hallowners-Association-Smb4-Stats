@@ -29,12 +29,6 @@
   h1,h2,h3,h4,h5,h6{font-weight:400;}
   strong,b{font-weight:600; color:var(--cream);}
   thead th{font-weight:600;}
-  #teamLoginPop{
-    display:none; position:fixed; top:56px; right:12px; z-index:2000;
-    background:var(--navy-800); border:1px solid var(--gold); padding:12px;
-    flex-direction:column; gap:8px; width:230px; box-shadow:0 8px 24px rgba(0,0,0,0.5);
-  }
-  #teamLoginPop.open{display:flex;}
   body{
     margin:0;
     background:var(--navy-950);
@@ -767,6 +761,7 @@
   @media (max-width:520px){
     .draft-team-grid{grid-template-columns:1fr;}
   }
+  .draft-team-box.on-clock{box-shadow:0 0 0 2px var(--gold); background:var(--navy-700);}
   .draft-team-box{
     background:var(--navy-800);
     border:1px solid var(--hairline);
@@ -1361,11 +1356,6 @@
   </div>
   <div class="weekly-strip" id="weeklyStrip"></div>
 </div>
-<div id="teamLoginPop">
-  <input type="text" id="draftLoginUser" class="sheet-url-input" placeholder="Username" autocomplete="username">
-  <input type="password" id="draftLoginPass" class="sheet-url-input" placeholder="Password" autocomplete="current-password">
-  <button class="file-btn" id="draftLoginBtn" type="button">Log In</button>
-  <div class="import-status" id="teamLoginMsg"></div>
 </div>
 
 <nav class="tabs" id="tabs">
@@ -1497,7 +1487,7 @@
 
   <section class="panel" id="panel-draft">
     <h2 class="section-title">Draft</h2>
-    <p style="color:var(--cream-dim); font-size:13px; margin-top:-8px;">Log in with the Team Login button at the top, then click a player and click your team box to draft them &mdash; or drag and drop. You can only edit your own team's draft; everyone can view all boards. Team names are set from the Admin tab. Rosters cap at 22 players.</p>
+    <p style="color:var(--cream-dim); font-size:13px; margin-top:-8px;">Snake draft: picks go teams 1&ndash;6, then 6&ndash;1, and so on. Log in with Team Login at the top; when your team is on the clock, click a player and then your team box (or drag and drop). Only the team on the clock can pick, and picks are final. Everyone can view all boards. Rosters cap at 22 players.</p>
     <div id="draftLoginBar" style="color:var(--cream); font-size:13px; margin:10px 0 14px;"></div>
     <div class="import-status" id="draftNotice"></div>
     <div class="draft-layout">
@@ -1907,9 +1897,12 @@ function setAdminUiVisible(on){
   }
 }
 firebase.auth().onAuthStateChanged(user=>{
-  isAdmin = !!user;
+  const wasAdmin = isAdmin;
+  draftUser = teamFromUser(user);          // team1..team6 accounts are NOT admins
+  isAdmin = !!user && !draftUser;
   previewAsVisitor = false;
-  setAdminUiVisible(effectiveAdmin());
+  // Team sign-in/out shouldn't bounce the visitor off the Draft tab.
+  if(!draftUser || wasAdmin) setAdminUiVisible(effectiveAdmin());
   renderAll();
 });
 
@@ -4493,38 +4486,57 @@ let draftSelectedPlayer = null;
 let draftSearchQuery = "";
 const DRAFT_ROSTER_CAP = 22;
 
-// Per-team draft logins. NOTE: this is client-side only (the credentials
-// ship in the page source), so it keeps honest users in their own lane but
-// isn't real security. Admin (Firebase Auth) can still edit every team.
-const DRAFT_LOGINS = {
-  team1:{pass:"fuckyou",   slot:0},
-  team2:{pass:"hello",     slot:1},
-  team3:{pass:"Galvanized",slot:2},
-  team4:{pass:"BCP",       slot:3},
-  team5:{pass:"gimmick",   slot:4},
-  team6:{pass:"Halls",     slot:5}
-};
-let draftUser = null; // {username, slot} once logged in
-try{
-  const saved = JSON.parse(sessionStorage.getItem("draftUser")||"null");
-  if(saved && DRAFT_LOGINS[saved.username]) draftUser = {username:saved.username, slot:DRAFT_LOGINS[saved.username].slot};
-}catch(e){}
+// Team logins are real Firebase Auth accounts, same as Admin. Create these 6
+// users in Firebase console > Authentication (Email/Password):
+//   team1@draft.ha ... team6@draft.ha, password = <team password> + DRAFT_PW_SUFFIX
+// (Firebase needs 6+ characters, so short passwords are padded with the suffix.)
+const DRAFT_EMAIL_DOMAIN = "draft.ha";
+const DRAFT_PW_SUFFIX = "-draft";
+const DRAFT_SLOTS = {team1:0, team2:1, team3:2, team4:3, team5:4, team6:5};
+const DRAFT_TEAMS = 6;
+let draftUser = null; // {username, slot} while a team account is signed in
+function teamFromUser(user){
+  if(!user || !user.email) return null;
+  const m = user.email.toLowerCase().match(/^(team[1-6])@draft\.ha$/);
+  return m ? {username:m[1], slot:DRAFT_SLOTS[m[1]]} : null;
+}
 
-// toSlot === undefined means "back to the pool".
+// Snake order: 1 2 3 4 5 6 6 5 4 3 2 1 ... The pick number is simply how many
+// players have been drafted so far, so it stays correct across reloads.
+function draftOnClock(){
+  const n = Object.keys(draftAssignmentsObj()).length;
+  if(n >= DRAFT_TEAMS*DRAFT_ROSTER_CAP) return null;
+  const round = Math.floor(n/DRAFT_TEAMS), pos = n % DRAFT_TEAMS;
+  return {pick:n+1, round:round+1, slot: (round%2===0) ? pos : DRAFT_TEAMS-1-pos};
+}
+function draftTeamLabel(slot){ return draftTeamNamesArr()[slot] || ("Team "+(slot+1)); }
+
+// Can this person pick up (select/drag) this player right now?
+function canSelectDraft(name){
+  if(effectiveAdmin()) return true;
+  if(!draftUser || draftAssignmentsObj()[name]!==undefined) return false;
+  const c = draftOnClock();
+  return !!c && c.slot===draftUser.slot;
+}
+// toSlot === undefined means "back to the pool". Teams can only draft an
+// undrafted player into their own box while on the clock; picks are final.
 function canMoveDraft(name, toSlot){
   if(effectiveAdmin()) return true;
-  if(!draftUser) return false;
-  const from = draftAssignmentsObj()[name];
-  if(from!==undefined && from!==draftUser.slot) return false;
-  if(toSlot!==undefined && toSlot!==draftUser.slot) return false;
-  return true;
+  if(!draftUser || draftAssignmentsObj()[name]!==undefined) return false;
+  const c = draftOnClock();
+  return !!c && toSlot===draftUser.slot && c.slot===draftUser.slot;
 }
-function denyDraft(){
+function denyDraft(name, toSlot){
   const notice = document.getElementById("draftNotice");
   if(!notice) return;
-  if(!draftUser){ setStatus(notice, "Log in with your team account to edit the draft.", true); return; }
-  const tn = draftTeamNamesArr()[draftUser.slot] || ("Team "+(draftUser.slot+1));
-  setStatus(notice, `You can only edit your own team's draft (${tn}).`, true);
+  const c = draftOnClock();
+  let msg;
+  if(!draftUser) msg = "Log in with Team Login (top right) to draft.";
+  else if(name!==undefined && draftAssignmentsObj()[name]!==undefined) msg = "Picks are final \u2014 ask the commissioner to change one.";
+  else if(!c) msg = "The draft is complete.";
+  else if(toSlot!==undefined && toSlot!==draftUser.slot) msg = "You can only draft to your own team.";
+  else msg = `It's not your pick \u2014 ${draftTeamLabel(c.slot)} is on the clock.`;
+  setStatus(notice, msg, true);
 }
 
 function renderDraftLogin(){
@@ -4532,50 +4544,36 @@ function renderDraftLogin(){
   if(btn) btn.textContent = draftUser ? `Log Out (${draftUser.username})` : "Team Login";
   const bar = document.getElementById("draftLoginBar");
   if(!bar) return;
-  if(draftUser){
-    const tn = draftTeamNamesArr()[draftUser.slot] || ("Team "+(draftUser.slot+1));
-    bar.textContent = `Logged in as ${draftUser.username} \u2014 ${tn}. You can edit this team's draft only.`;
-  }else{
-    bar.textContent = "Not logged in \u2014 use Team Login at the top to draft.";
-  }
+  const c = draftOnClock();
+  const who = draftUser
+    ? `Logged in as <strong>${escapeHtml(draftUser.username)}</strong> &mdash; ${escapeHtml(draftTeamLabel(draftUser.slot))}`
+    : "Not logged in &mdash; use Team Login at the top to draft.";
+  const clock = c
+    ? `Pick ${c.pick} &middot; Round ${c.round} &mdash; <strong>${escapeHtml(draftTeamLabel(c.slot))}</strong> is on the clock${draftUser && draftUser.slot===c.slot ? " (that's you!)" : ""}`
+    : "Draft complete.";
+  bar.innerHTML = `<div>${who}</div><div style="margin-top:4px;">${clock}</div>`;
 }
-(function(){
-  const pop = document.getElementById("teamLoginPop");
-  const msg = document.getElementById("teamLoginMsg");
-  const doLogin = ()=>{
-    const u = document.getElementById("draftLoginUser").value.trim().toLowerCase();
-    const pw = document.getElementById("draftLoginPass").value;
-    const acct = DRAFT_LOGINS[u];
-    if(!acct || acct.pass!==pw){ setStatus(msg, "Wrong username or password.", true); return; }
-    draftUser = {username:u, slot:acct.slot};
-    try{ sessionStorage.setItem("draftUser", JSON.stringify({username:u})); }catch(e){}
-    document.getElementById("draftLoginPass").value = "";
-    setStatus(msg, "", false);
-    pop.classList.remove("open");
-    renderDraftPage();
-  };
-  document.getElementById("teamLoginBtn").addEventListener("click", ()=>{
-    if(draftUser){
-      draftUser = null; draftSelectedPlayer = null;
-      try{ sessionStorage.removeItem("draftUser"); }catch(e){}
-      renderDraftPage();
-      return;
-    }
-    pop.classList.toggle("open");
-    if(pop.classList.contains("open")) document.getElementById("draftLoginUser").focus();
-  });
-  document.getElementById("draftLoginBtn").addEventListener("click", doLogin);
-  pop.addEventListener("keydown", e=>{
-    if(e.key==="Enter") doLogin();
-    if(e.key==="Escape") pop.classList.remove("open");
-  });
-})();
+
+document.getElementById("teamLoginBtn").addEventListener("click", async ()=>{
+  if(draftUser){ firebase.auth().signOut(); return; }
+  if(isAdmin){ alert("Sign out of Admin first."); return; }
+  const u = (prompt("Team username (team1 - team6):")||"").trim().toLowerCase();
+  if(!u) return;
+  if(!Object.prototype.hasOwnProperty.call(DRAFT_SLOTS, u)){ alert("Unknown team username."); return; }
+  const pw = prompt("Password:");
+  if(!pw) return;
+  try{
+    await firebase.auth().signInWithEmailAndPassword(`${u}@${DRAFT_EMAIL_DOMAIN}`, pw + DRAFT_PW_SUFFIX);
+  }catch(err){
+    alert("Sign-in failed: " + err.message);
+  }
+});
 
 // Moves a player into a team box unless that team is already at the cap.
 // Returns true if the move happened.
 function tryAssignDraft(name, slot){
   const notice = document.getElementById("draftNotice");
-  if(!canMoveDraft(name, slot)){ denyDraft(); return false; }
+  if(!canMoveDraft(name, slot)){ denyDraft(name, slot); return false; }
   if(draftSlotCount(slot, name) >= DRAFT_ROSTER_CAP){
     const tn = draftTeamNamesArr()[slot] || ("Team "+(slot+1));
     if(notice) setStatus(notice, `${tn} is full (${DRAFT_ROSTER_CAP} players max).`, true);
@@ -4593,8 +4591,8 @@ function draftChipHtml(name, assigned){
     + (draftSearchQuery && name.toLowerCase().includes(draftSearchQuery) ? " search-match" : "");
   const profileBtn = `<button type="button" class="draft-chip-profile" data-open-profile="${escapeAttr(name)}" title="Open profile">i</button>`;
   const ovrBit = (p && p.ovr) ? ovrBadge(p.ovr) : "";
-  const removeBtn = (assigned && canMoveDraft(name, undefined)) ? `<button type="button" class="draft-chip-remove" data-remove-player="${escapeAttr(name)}" title="Return to pool">&times;</button>` : "";
-  return `<div class="draft-chip${selectedClass}" draggable="${canMoveDraft(name, undefined)}" data-player="${escapeAttr(name)}">
+  const removeBtn = (assigned && effectiveAdmin()) ? `<button type="button" class="draft-chip-remove" data-remove-player="${escapeAttr(name)}" title="Return to pool">&times;</button>` : "";
+  return `<div class="draft-chip${selectedClass}" draggable="${canSelectDraft(name)}" data-player="${escapeAttr(name)}">
     <span class="draft-chip-name">${escapeHtml(name)}</span>
     ${ovrBit}
     ${posLabel?`<span class="draft-chip-pos">${escapeHtml(posLabel)}</span>`:""}
@@ -4609,6 +4607,7 @@ function renderDraftPage(){
   if(!poolEl || !boxesEl) return;
 
   renderDraftLogin();
+  const clock = draftOnClock();
   const assignments = draftAssignmentsObj();
   const teamNames = draftTeamNamesArr();
   const undrafted = draftPoolPlayers().filter(n=> assignments[n]===undefined);
@@ -4620,7 +4619,7 @@ function renderDraftPage(){
 
   boxesEl.innerHTML = teamNames.map((teamName, slot)=>{
     const picks = Object.keys(assignments).filter(n=> assignments[n]===slot).sort();
-    return `<div class="draft-team-box${picks.length>=DRAFT_ROSTER_CAP?" full":""}" data-slot="${slot}">
+    return `<div class="draft-team-box${picks.length>=DRAFT_ROSTER_CAP?" full":""}${clock && clock.slot===slot?" on-clock":""}" data-slot="${slot}">
       <div class="draft-team-box-header"><span>${escapeHtml(teamName || ("Team "+(slot+1)))}</span><span class="draft-team-count">${picks.length}/${DRAFT_ROSTER_CAP}</span></div>
       <div class="draft-team-box-body" data-slot="${slot}">
         ${picks.length ? picks.map(n=>draftChipHtml(n,true)).join("") : `<div class="draft-empty-note">Drop players here</div>`}
@@ -4630,8 +4629,27 @@ function renderDraftPage(){
 }
 
 async function saveDraftAssignments(){
-  await saveToStorage(`draftAssignments_${state.season}`, draftAssignmentsObj());
+  try{
+    await window.storage.set(`draftAssignments_${state.season}`, JSON.stringify(draftAssignmentsObj()));
+  }catch(e){
+    console.warn("draft save failed", e);
+    const n = document.getElementById("draftNotice");
+    if(n) setStatus(n, e && e.code==="permission-denied"
+      ? "Couldn't save \u2014 permission denied (Firestore rules must allow team accounts to write the draft)."
+      : "Couldn't save the pick: " + (e && e.message || e), true);
+  }
 }
+
+// Live sync so every team sees picks (and whose turn it is) without reloading.
+SEASON_IDS.forEach(id=>{
+  [["draftAssignments","draftAssignments"],["draftTeamNames","draftTeamNames"]].forEach(([key,prop])=>{
+    db.collection("kv").doc(`${key}_${id}`).onSnapshot(snap=>{
+      if(!snap.exists) return;
+      try{ SEASONS[id][prop] = JSON.parse(snap.data().value); }catch(e){ return; }
+      if(dataLoaded && id===state.season) renderDraftPage();
+    }, ()=>{});
+  });
+});
 
 function renderDraftAdminInputs(){
   const teamNames = draftTeamNamesArr();
@@ -4682,7 +4700,7 @@ draftPanel.addEventListener("click", async e=>{
   }
   const removeBtn = e.target.closest("[data-remove-player]");
   if(removeBtn){
-    if(!canMoveDraft(removeBtn.dataset.removePlayer, undefined)){ denyDraft(); return; }
+    if(!canMoveDraft(removeBtn.dataset.removePlayer, undefined)){ denyDraft(removeBtn.dataset.removePlayer); return; }
     delete draftAssignmentsObj()[removeBtn.dataset.removePlayer];
     await saveDraftAssignments();
     renderDraftPage();
@@ -4691,7 +4709,7 @@ draftPanel.addEventListener("click", async e=>{
   const chip = e.target.closest(".draft-chip");
   if(chip){
     const name = chip.dataset.player;
-    if(!canMoveDraft(name, undefined)){ denyDraft(); return; }
+    if(!canSelectDraft(name)){ denyDraft(name); return; }
     draftSelectedPlayer = (draftSelectedPlayer===name) ? null : name;
     renderDraftPage();
     return;
@@ -4708,7 +4726,8 @@ draftPanel.addEventListener("click", async e=>{
     return;
   }
   if(e.target.closest("#draftPool")){
-    if(!canMoveDraft(draftSelectedPlayer, undefined)){ denyDraft(); return; }
+    if(draftAssignmentsObj()[draftSelectedPlayer]===undefined){ draftSelectedPlayer = null; renderDraftPage(); return; }
+    if(!canMoveDraft(draftSelectedPlayer, undefined)){ denyDraft(draftSelectedPlayer); return; }
     delete draftAssignmentsObj()[draftSelectedPlayer];
     draftSelectedPlayer = null;
     await saveDraftAssignments();
@@ -4720,7 +4739,7 @@ draftPanel.addEventListener("click", async e=>{
 draftPanel.addEventListener("dragstart", e=>{
   const chip = e.target.closest(".draft-chip");
   if(!chip) return;
-  if(!canMoveDraft(chip.dataset.player, undefined)){ e.preventDefault(); denyDraft(); return; }
+  if(!canSelectDraft(chip.dataset.player)){ e.preventDefault(); denyDraft(chip.dataset.player); return; }
   e.dataTransfer.setData("text/plain", chip.dataset.player);
   e.dataTransfer.effectAllowed = "move";
 });
@@ -4745,7 +4764,8 @@ draftPanel.addEventListener("drop", async e=>{
   if(box){
     if(!tryAssignDraft(name, Number(box.dataset.slot))){ renderDraftPage(); return; }
   }else{
-    if(!canMoveDraft(name, undefined)){ denyDraft(); return; }
+    if(draftAssignmentsObj()[name]===undefined){ renderDraftPage(); return; }
+    if(!canMoveDraft(name, undefined)){ denyDraft(name); return; }
     delete draftAssignmentsObj()[name];
   }
   draftSelectedPlayer = null;
