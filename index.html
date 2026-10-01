@@ -5,27 +5,38 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Hallowners Association Smb4 Stats</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Passion+One:wght@400;700;900&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <style>
   :root{
-    --navy-950:#0A1628;
-    --navy-800:#122542;
-    --navy-700:#1B3357;
-    --navy-600:#254273;
-    --cream:#F1ECDA;
-    --cream-dim:#C9C3AC;
-    --gold:#F5B700;
-    --gold-dim:#B98900;
+    --navy-950:#150C20;
+    --navy-800:#20122F;
+    --navy-700:#2E1A44;
+    --navy-600:#40255C;
+    --cream:#EFE9F4;
+    --cream-dim:#B7A9C6;
+    --gold:#FF7A1A;
+    --gold-dim:#C95A08;
     --crimson:#D64545;
     --green:#4FA97A;
-    --hairline: rgba(241,236,218,0.12);
+    --hairline: rgba(239,233,244,0.12);
   }
   *{box-sizing:border-box;}
-  /* Anton only ships one weight; default-bold headings got smeared faux-bold. */
+  /* Team login popup */
+  #teamLoginDialog{border:1px solid var(--gold); border-radius:10px; padding:0; background:var(--navy-800); color:var(--cream); width:min(420px, calc(100vw - 32px)); box-shadow:0 24px 60px rgba(0,0,0,0.55);}
+  #teamLoginDialog::backdrop{background:rgba(10,4,18,0.72); backdrop-filter:blur(3px);}
+  .team-login-inner{padding:26px 24px 22px;}
+  .team-login-title{font-family:'Passion One',sans-serif; font-size:30px; line-height:1; margin:0 0 6px; color:var(--cream);}
+  .team-login-sub{margin:0 0 18px; font-size:14px; color:var(--cream-dim);}
+  .team-login-options{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .team-login-option{font:inherit; font-weight:600; font-size:15px; padding:14px 10px; border-radius:8px; border:1px solid var(--hairline); background:var(--navy-700); color:var(--cream); cursor:pointer;}
+  .team-login-option:hover{border-color:var(--gold); background:var(--navy-600);}
+  .team-login-option:focus-visible, .team-login-cancel:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .team-login-cancel{display:block; margin:16px auto 0; font:inherit; font-size:14px; background:none; border:none; color:var(--cream-dim); cursor:pointer; text-decoration:underline;}
+  /* Passion One display type; default-bold headings got smeared faux-bold. */
   h1,h2,h3,h4,h5,h6{font-weight:400;}
   strong,b{font-weight:600; color:var(--cream);}
   thead th{font-weight:600;}
@@ -33,7 +44,7 @@
     margin:0;
     background:var(--navy-950);
     background-image:
-      radial-gradient(ellipse at top, rgba(37,66,115,0.35), transparent 60%),
+      radial-gradient(ellipse at top, rgba(64,37,92,0.55), transparent 60%),
       repeating-linear-gradient(180deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 3px);
     color:var(--cream);
     font-family:'Inter',sans-serif;
@@ -59,7 +70,7 @@
     padding-bottom:16px;
   }
   .league-name{
-    font-family:'Anton',sans-serif;
+    font-family:'Passion One',sans-serif;
     font-size:clamp(28px,5vw,52px);
     letter-spacing:0.5px;
     line-height:1;
@@ -120,7 +131,7 @@
     display:flex;
     align-items:center;
     justify-content:center;
-    font-family:'Anton',sans-serif;
+    font-family:'Passion One',sans-serif;
     font-size:22px;
     color:var(--gold);
     overflow:hidden;
@@ -134,7 +145,7 @@
     text-transform:uppercase;
   }
   .weekly-card-name{
-    font-family:'Anton',sans-serif;
+    font-family:'Passion One',sans-serif;
     font-size:20px;
     letter-spacing:0.3px;
     color:var(--cream);
@@ -170,7 +181,7 @@
     display:flex;
     align-items:center;
     justify-content:center;
-    font-family:'Anton',sans-serif;
+    font-family:'Passion One',sans-serif;
     font-size:14px;
     color:var(--gold);
     overflow:hidden;
@@ -185,14 +196,14 @@
     color:var(--cream-dim);
   }
   .record-holder{
-    font-family:'Anton',sans-serif;
+    font-family:'Passion One',sans-serif;
     font-size:17px;
     text-transform:uppercase;
     color:var(--cream);
     margin-top:2px;
   }
   .record-value{
-    font-family:'Anton',sans-serif;
+    font-family:'Passion One',sans-serif;
     font-size:26px;
     color:var(--gold);
     letter-spacing:0.5px;
@@ -248,7 +259,7 @@
   .panel.active{display:block;}
 
   h2.section-title{
-    font-family:'Anton',sans-serif;
+    font-family:'Passion One',sans-serif;
     text-transform:uppercase;
     font-size:22px;
     letter-spacing:0.5px;
@@ -258,7 +269,7 @@
     border-bottom:1px solid var(--hairline);
   }
   h3.sub-title{
-    font-family:'Anton',sans-serif;
+    font-family:'Passion One',sans-serif;
     text-transform:uppercase;
     font-size:15px;
     letter-spacing:1px;
@@ -544,7 +555,7 @@
     color:var(--cream-dim);
   }
   .leader-card .stat-value{
-    font-family:'Anton',sans-serif;
+    font-family:'Passion One',sans-serif;
     font-size:26px;
     color:var(--gold);
     margin-top:4px;
@@ -567,7 +578,7 @@
     display:none;
     position:fixed;
     inset:0;
-    background:rgba(10,22,40,0.92);
+    background:rgba(21,12,32,0.92);
     z-index:80;
     overflow-y:auto;
     padding:40px 20px 80px;
@@ -603,7 +614,7 @@
     display:flex;
     align-items:center;
     justify-content:center;
-    font-family:'Anton',sans-serif;
+    font-family:'Passion One',sans-serif;
     font-size:42px;
     letter-spacing:0.5px;
     color:var(--gold);
@@ -694,7 +705,7 @@
   .player-overlay-awards .award-name{font-size:10px;}
   .player-overlay-awards .award-winner{font-size:16px;}
   .player-overlay-name{
-    font-family:'Anton',sans-serif;
+    font-family:'Passion One',sans-serif;
     font-size:clamp(24px,4vw,36px);
     text-transform:uppercase;
     color:var(--cream);
@@ -729,7 +740,7 @@
     border-top:2px solid var(--gold);
   }
   tr.playoff-row td{
-    background:rgba(245,183,0,0.06);
+    background:rgba(255,122,26,0.06);
     font-style:italic;
     color:var(--cream-dim);
   }
@@ -777,7 +788,7 @@
     background:var(--navy-700);
   }
   .draft-team-box-header{
-    font-family:'Anton',sans-serif;
+    font-family:'Passion One',sans-serif;
     letter-spacing:0.3px;
     text-transform:uppercase;
     font-size:15px;
@@ -829,7 +840,7 @@
   }
   .draft-chip.selected{
     border-color:var(--gold);
-    background:rgba(245,183,0,0.1);
+    background:rgba(255,122,26,0.1);
   }
   .draft-chip-name{flex:1; color:var(--cream); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .draft-chip-pos{color:var(--cream-dim); font-size:10px;}
@@ -873,7 +884,7 @@
 
   /* ---------- Team-clickable rows (Standings -> team stats overlay) ---------- */
   tr[data-team-open]{cursor:pointer; transition:background .15s ease;}
-  tr[data-team-open]:hover{background:rgba(245,183,0,0.08);}
+  tr[data-team-open]:hover{background:rgba(255,122,26,0.08);}
 
   /* ---------- Box scores ---------- */
   .section-title-row{
@@ -888,7 +899,7 @@
   }
   .section-title-row h2.section-title{margin:0; padding-bottom:0; border-bottom:none;}
   .boxscore-index-row{cursor:pointer; transition:background .15s ease;}
-  .boxscore-index-row:hover{background:rgba(245,183,0,0.08);}
+  .boxscore-index-row:hover{background:rgba(255,122,26,0.08);}
   .game-list{display:flex; flex-direction:column; gap:10px;}
   .game-row{
     background:var(--navy-700);
@@ -912,7 +923,7 @@
     display:flex;
     gap:24px;
     margin-top:8px;
-    font-family:'Anton',sans-serif;
+    font-family:'Passion One',sans-serif;
     font-size:20px;
   }
   .game-row-score .win{color:var(--gold);}
@@ -927,7 +938,7 @@
     min-width:26px;
   }
   .linescore th{color:var(--cream-dim); font-weight:500;}
-  .linescore td.rhe{font-weight:700; color:var(--gold); background:rgba(245,183,0,0.08);}
+  .linescore td.rhe{font-weight:700; color:var(--gold); background:rgba(255,122,26,0.08);}
   .linescore td.team-name{text-align:left; color:var(--cream); font-weight:600;}
 
   /* ---------- History / Awards ---------- */
@@ -945,7 +956,7 @@
     text-transform:uppercase;
     color:var(--cream-dim);
   }
-  .award-card .award-winner{font-family:'Anton',sans-serif; font-size:19px; color:var(--cream); margin-top:4px;}
+  .award-card .award-winner{font-family:'Passion One',sans-serif; font-size:19px; color:var(--cream); margin-top:4px;}
   .award-card .award-detail{font-size:12px; color:var(--cream-dim); margin-top:2px;}
 
   .filter-select{
@@ -1178,7 +1189,7 @@
     position:absolute; inset:0; width:100%; height:100%; background:#000;
   }
   .highlight-card-title{
-    font-family:'Anton',sans-serif;
+    font-family:'Passion One',sans-serif;
     font-size:14px;
     letter-spacing:0.3px;
     color:var(--cream);
@@ -1226,7 +1237,7 @@
   }
   .highlight-of-day-player{
     margin-top:10px;
-    font-family:'Anton',sans-serif;
+    font-family:'Passion One',sans-serif;
     font-size:15px;
     text-transform:uppercase;
     letter-spacing:0.3px;
@@ -1253,7 +1264,7 @@
     border-left:3px solid var(--gold);
   }
   .import-block h4{
-    font-family:'Anton',sans-serif;
+    font-family:'Passion One',sans-serif;
     text-transform:uppercase;
     font-size:15px;
     letter-spacing:0.5px;
@@ -1487,7 +1498,7 @@
 
   <section class="panel" id="panel-draft">
     <h2 class="section-title">Draft</h2>
-    <p style="color:var(--cream-dim); font-size:13px; margin-top:-8px;">Snake draft: picks go teams 1&ndash;6, then 6&ndash;1, and so on. Log in with Team Login at the top; when your team is on the clock, click a player and then your team box (or drag and drop). Only the team on the clock can pick, and picks are final. Everyone can view all boards. Rosters cap at 22 players.</p>
+    <p style="color:var(--cream-dim); font-size:13px; margin-top:-8px;">Snake draft: picks go teams 1&ndash;6, then 6&ndash;1, and so on. Use Team Login at the top to pick your team; when your team is on the clock, click a player and then your team box (or drag and drop). Only the team on the clock can pick, and picks are final. Everyone can view all boards. Rosters cap at 22 players.</p>
     <div id="draftLoginBar" style="color:var(--cream); font-size:13px; margin:10px 0 14px;"></div>
     <div class="import-status" id="draftNotice"></div>
     <div class="draft-layout">
@@ -1799,6 +1810,14 @@
   </div>
 </div>
 
+<dialog id="teamLoginDialog" aria-labelledby="teamLoginTitle">
+  <div class="team-login-inner">
+    <h2 class="team-login-title" id="teamLoginTitle">Team login</h2>
+    <p class="team-login-sub">Choose your team to draft.</p>
+    <div class="team-login-options" id="teamLoginOptions"></div>
+    <button type="button" class="team-login-cancel" data-close-dialog>Cancel</button>
+  </div>
+</dialog>
 <script>
 /* =========================================================================
    DATA — everything below is placeholder/sample data built around your
@@ -1897,12 +1916,10 @@ function setAdminUiVisible(on){
   }
 }
 firebase.auth().onAuthStateChanged(user=>{
-  const wasAdmin = isAdmin;
-  draftUser = teamFromUser(user);          // team1..team6 accounts are NOT admins
-  isAdmin = !!user && !draftUser;
+  isAdmin = !!user;                        // Firebase Auth is now admin-only
+  if(isAdmin) setDraftUser(null);          // admin acts without a team login
   previewAsVisitor = false;
-  // Team sign-in/out shouldn't bounce the visitor off the Draft tab.
-  if(!draftUser || wasAdmin) setAdminUiVisible(effectiveAdmin());
+  setAdminUiVisible(effectiveAdmin());
   renderAll();
 });
 
@@ -4486,28 +4503,46 @@ let draftSelectedPlayer = null;
 let draftSearchQuery = "";
 const DRAFT_ROSTER_CAP = 22;
 
-// Team logins are real Firebase Auth accounts, same as Admin. Create these 6
-// users in Firebase console > Authentication (Email/Password):
-//   team1@draft.ha ... team6@draft.ha, password = <team password> + DRAFT_PW_SUFFIX
-// (Firebase needs 6+ characters, so short passwords are padded with the suffix.)
-const DRAFT_EMAIL_DOMAIN = "draft.ha";
-const DRAFT_PW_SUFFIX = "-draft";
-const DRAFT_SLOTS = {team1:0, team2:1, team3:2, team4:3, team5:4, team6:5};
+// Team login is a simple popup (no Firebase account): pick your team and you
+// can draft for it. The choice is remembered in this browser only.
 const DRAFT_TEAMS = 6;
-let draftUser = null; // {username, slot} while a team account is signed in
-function teamFromUser(user){
-  if(!user || !user.email) return null;
-  const m = user.email.toLowerCase().match(/^(team[1-6])@draft\.ha$/);
-  return m ? {username:m[1], slot:DRAFT_SLOTS[m[1]]} : null;
+const TEAM_LOGIN_KEY = "haDraftTeamSlot";
+let draftUser = null; // {username, slot} once a team is picked in the popup
+function setDraftUser(slot){
+  draftUser = (slot===null || slot===undefined) ? null : {username:"team"+(slot+1), slot};
+  try{ if(draftUser) localStorage.setItem(TEAM_LOGIN_KEY, String(slot)); else localStorage.removeItem(TEAM_LOGIN_KEY); }catch(e){}
 }
+try{
+  const saved = localStorage.getItem(TEAM_LOGIN_KEY);
+  if(saved!==null && Number(saved)>=0 && Number(saved)<DRAFT_TEAMS) draftUser = {username:"team"+(Number(saved)+1), slot:Number(saved)};
+}catch(e){}
 
-// Snake order: 1 2 3 4 5 6 6 5 4 3 2 1 ... The pick number is simply how many
-// players have been drafted so far, so it stays correct across reloads.
+// Snake order: 1 2 3 4 5 6 6 5 4 3 2 1 ... The clock sits on the EARLIEST pick
+// that is still empty, worked out from how many players each team holds. So
+// when a player is removed from a roster, the draft counts backwards to that
+// pick (and forward again once it's refilled) instead of just using a total.
+function draftSnakeSlot(i){
+  const round = Math.floor(i/DRAFT_TEAMS), pos = i % DRAFT_TEAMS;
+  return (round%2===0) ? pos : DRAFT_TEAMS-1-pos;
+}
+function draftSlotCount(slot, exceptName){
+  const a = draftAssignmentsObj();
+  return Object.keys(a).filter(n=> a[n]===slot && n!==exceptName).length;
+}
 function draftOnClock(){
-  const n = Object.keys(draftAssignmentsObj()).length;
-  if(n >= DRAFT_TEAMS*DRAFT_ROSTER_CAP) return null;
-  const round = Math.floor(n/DRAFT_TEAMS), pos = n % DRAFT_TEAMS;
-  return {pick:n+1, round:round+1, slot: (round%2===0) ? pos : DRAFT_TEAMS-1-pos};
+  const have = new Array(DRAFT_TEAMS).fill(0), need = new Array(DRAFT_TEAMS).fill(0);
+  Object.values(draftAssignmentsObj()).forEach(sl=>{ if(sl>=0 && sl<DRAFT_TEAMS) have[sl]++; });
+  for(let i=0; i<DRAFT_TEAMS*DRAFT_ROSTER_CAP; i++){
+    const slot = draftSnakeSlot(i);
+    need[slot]++;
+    if(need[slot] > have[slot]) return {pick:i+1, round:Math.floor(i/DRAFT_TEAMS)+1, slot};
+  }
+  return null;
+}
+function draftRewindNotice(){
+  const notice = document.getElementById("draftNotice");
+  const c = draftOnClock();
+  if(notice) setStatus(notice, c ? `Player removed \u2014 back to pick ${c.pick} (round ${c.round}): ${draftTeamLabel(c.slot)} is on the clock.` : "", false);
 }
 function draftTeamLabel(slot){ return draftTeamNamesArr()[slot] || ("Team "+(slot+1)); }
 
@@ -4541,12 +4576,12 @@ function denyDraft(name, toSlot){
 
 function renderDraftLogin(){
   const btn = document.getElementById("teamLoginBtn");
-  if(btn) btn.textContent = draftUser ? `Log Out (${draftUser.username})` : "Team Login";
+  if(btn) btn.textContent = draftUser ? `Log Out (${draftTeamLabel(draftUser.slot)})` : "Team Login";
   const bar = document.getElementById("draftLoginBar");
   if(!bar) return;
   const c = draftOnClock();
   const who = draftUser
-    ? `Logged in as <strong>${escapeHtml(draftUser.username)}</strong> &mdash; ${escapeHtml(draftTeamLabel(draftUser.slot))}`
+    ? `Logged in as <strong>${escapeHtml(draftTeamLabel(draftUser.slot))}</strong>`
     : "Not logged in &mdash; use Team Login at the top to draft.";
   const clock = c
     ? `Pick ${c.pick} &middot; Round ${c.round} &mdash; <strong>${escapeHtml(draftTeamLabel(c.slot))}</strong> is on the clock${draftUser && draftUser.slot===c.slot ? " (that's you!)" : ""}`
@@ -4554,19 +4589,18 @@ function renderDraftLogin(){
   bar.innerHTML = `<div>${who}</div><div style="margin-top:4px;">${clock}</div>`;
 }
 
-document.getElementById("teamLoginBtn").addEventListener("click", async ()=>{
-  if(draftUser){ firebase.auth().signOut(); return; }
+const teamLoginDialog = document.getElementById("teamLoginDialog");
+document.getElementById("teamLoginBtn").addEventListener("click", ()=>{
+  if(draftUser){ setDraftUser(null); renderAll(); return; }
   if(isAdmin){ alert("Sign out of Admin first."); return; }
-  const u = (prompt("Team username (team1 - team6):")||"").trim().toLowerCase();
-  if(!u) return;
-  if(!Object.prototype.hasOwnProperty.call(DRAFT_SLOTS, u)){ alert("Unknown team username."); return; }
-  const pw = prompt("Password:");
-  if(!pw) return;
-  try{
-    await firebase.auth().signInWithEmailAndPassword(`${u}@${DRAFT_EMAIL_DOMAIN}`, pw + DRAFT_PW_SUFFIX);
-  }catch(err){
-    alert("Sign-in failed: " + err.message);
-  }
+  document.getElementById("teamLoginOptions").innerHTML = draftTeamNamesArr().map((n,i)=>
+    `<button type="button" class="team-login-option" data-slot="${i}">${escapeHtml(n || ("Team "+(i+1)))}</button>`).join("");
+  teamLoginDialog.showModal();
+});
+teamLoginDialog.addEventListener("click", e=>{
+  const opt = e.target.closest(".team-login-option");
+  if(opt){ setDraftUser(Number(opt.dataset.slot)); teamLoginDialog.close(); renderAll(); return; }
+  if(e.target===teamLoginDialog || e.target.closest("[data-close-dialog]")) teamLoginDialog.close();
 });
 
 // Moves a player into a team box unless that team is already at the cap.
@@ -4704,6 +4738,7 @@ draftPanel.addEventListener("click", async e=>{
     delete draftAssignmentsObj()[removeBtn.dataset.removePlayer];
     await saveDraftAssignments();
     renderDraftPage();
+    draftRewindNotice();
     return;
   }
   const chip = e.target.closest(".draft-chip");
@@ -4732,6 +4767,7 @@ draftPanel.addEventListener("click", async e=>{
     draftSelectedPlayer = null;
     await saveDraftAssignments();
     renderDraftPage();
+    draftRewindNotice();
   }
 });
 
@@ -4771,6 +4807,7 @@ draftPanel.addEventListener("drop", async e=>{
   draftSelectedPlayer = null;
   await saveDraftAssignments();
   renderDraftPage();
+  if(pool) draftRewindNotice();
 });
 
 document.getElementById("draftTeamNamesSave").addEventListener("click", async ()=>{
