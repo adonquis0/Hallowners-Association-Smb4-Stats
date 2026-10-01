@@ -1480,7 +1480,8 @@
 
   <section class="panel" id="panel-draft">
     <h2 class="section-title">Draft</h2>
-    <p style="color:var(--cream-dim); font-size:13px; margin-top:-8px;">Click a player, then click a team box to draft them &mdash; or drag and drop. Anyone can move players; team names are set from the Admin tab. Rosters cap at 22 players.</p>
+    <p style="color:var(--cream-dim); font-size:13px; margin-top:-8px;">Log in with your team account, then click a player and click your team box to draft them &mdash; or drag and drop. You can only edit your own team's draft; everyone can view all boards. Team names are set from the Admin tab. Rosters cap at 22 players.</p>
+    <div id="draftLoginBar" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:10px 0 14px;"></div>
     <div class="import-status" id="draftNotice"></div>
     <div class="draft-layout">
       <div class="draft-pool-col">
@@ -4475,6 +4476,76 @@ let draftSelectedPlayer = null;
 let draftSearchQuery = "";
 const DRAFT_ROSTER_CAP = 22;
 
+// Per-team draft logins. NOTE: this is client-side only (the credentials
+// ship in the page source), so it keeps honest users in their own lane but
+// isn't real security. Admin (Firebase Auth) can still edit every team.
+const DRAFT_LOGINS = {
+  team1:{pass:"fuckyou",   slot:0},
+  team2:{pass:"hello",     slot:1},
+  team3:{pass:"Galvanized",slot:2},
+  team4:{pass:"BCP",       slot:3},
+  team5:{pass:"gimmick",   slot:4},
+  team6:{pass:"Halls",     slot:5}
+};
+let draftUser = null; // {username, slot} once logged in
+try{
+  const saved = JSON.parse(sessionStorage.getItem("draftUser")||"null");
+  if(saved && DRAFT_LOGINS[saved.username]) draftUser = {username:saved.username, slot:DRAFT_LOGINS[saved.username].slot};
+}catch(e){}
+
+// toSlot === undefined means "back to the pool".
+function canMoveDraft(name, toSlot){
+  if(effectiveAdmin()) return true;
+  if(!draftUser) return false;
+  const from = draftAssignmentsObj()[name];
+  if(from!==undefined && from!==draftUser.slot) return false;
+  if(toSlot!==undefined && toSlot!==draftUser.slot) return false;
+  return true;
+}
+function denyDraft(){
+  const notice = document.getElementById("draftNotice");
+  if(!notice) return;
+  if(!draftUser){ setStatus(notice, "Log in with your team account to edit the draft.", true); return; }
+  const tn = draftTeamNamesArr()[draftUser.slot] || ("Team "+(draftUser.slot+1));
+  setStatus(notice, `You can only edit your own team's draft (${tn}).`, true);
+}
+
+let draftLoginSig = null;
+function renderDraftLogin(){
+  const bar = document.getElementById("draftLoginBar");
+  if(!bar) return;
+  const sig = draftUser ? ("in:"+draftUser.username+":"+(draftTeamNamesArr()[draftUser.slot]||"")) : "out";
+  if(sig===draftLoginSig) return;
+  draftLoginSig = sig;
+  if(draftUser){
+    const tn = draftTeamNamesArr()[draftUser.slot] || ("Team "+(draftUser.slot+1));
+    bar.innerHTML = `<span style="color:var(--cream); font-size:13px;">Logged in as <strong>${escapeHtml(draftUser.username)}</strong> &mdash; ${escapeHtml(tn)}</span>
+      <button class="file-btn" id="draftLogoutBtn" type="button">Log Out</button>`;
+    document.getElementById("draftLogoutBtn").addEventListener("click", ()=>{
+      draftUser = null; draftSelectedPlayer = null;
+      try{ sessionStorage.removeItem("draftUser"); }catch(e){}
+      renderDraftPage();
+    });
+  }else{
+    bar.innerHTML = `<input type="text" id="draftLoginUser" class="sheet-url-input" placeholder="Username" autocomplete="username" style="max-width:160px;">
+      <input type="password" id="draftLoginPass" class="sheet-url-input" placeholder="Password" autocomplete="current-password" style="max-width:160px;">
+      <button class="file-btn" id="draftLoginBtn" type="button">Log In</button>`;
+    const doLogin = ()=>{
+      const u = document.getElementById("draftLoginUser").value.trim().toLowerCase();
+      const pw = document.getElementById("draftLoginPass").value;
+      const acct = DRAFT_LOGINS[u];
+      const notice = document.getElementById("draftNotice");
+      if(!acct || acct.pass!==pw){ setStatus(notice, "Wrong username or password.", true); return; }
+      draftUser = {username:u, slot:acct.slot};
+      try{ sessionStorage.setItem("draftUser", JSON.stringify({username:u})); }catch(e){}
+      setStatus(notice, "", false);
+      renderDraftPage();
+    };
+    document.getElementById("draftLoginBtn").addEventListener("click", doLogin);
+    document.getElementById("draftLoginPass").addEventListener("keydown", e=>{ if(e.key==="Enter") doLogin(); });
+  }
+}
+
 function draftSlotCount(slot, exceptName){
   const a = draftAssignmentsObj();
   return Object.keys(a).filter(n=> a[n]===slot && n!==exceptName).length;
@@ -4483,6 +4554,7 @@ function draftSlotCount(slot, exceptName){
 // Returns true if the move happened.
 function tryAssignDraft(name, slot){
   const notice = document.getElementById("draftNotice");
+  if(!canMoveDraft(name, slot)){ denyDraft(); return false; }
   if(draftSlotCount(slot, name) >= DRAFT_ROSTER_CAP){
     const tn = draftTeamNamesArr()[slot] || ("Team "+(slot+1));
     if(notice) setStatus(notice, `${tn} is full (${DRAFT_ROSTER_CAP} players max).`, true);
@@ -4500,8 +4572,8 @@ function draftChipHtml(name, assigned){
     + (draftSearchQuery && name.toLowerCase().includes(draftSearchQuery) ? " search-match" : "");
   const profileBtn = `<button type="button" class="draft-chip-profile" data-open-profile="${escapeAttr(name)}" title="Open profile">i</button>`;
   const ovrBit = (p && p.ovr) ? ovrBadge(p.ovr) : "";
-  const removeBtn = assigned ? `<button type="button" class="draft-chip-remove" data-remove-player="${escapeAttr(name)}" title="Return to pool">&times;</button>` : "";
-  return `<div class="draft-chip${selectedClass}" draggable="true" data-player="${escapeAttr(name)}">
+  const removeBtn = (assigned && canMoveDraft(name, undefined)) ? `<button type="button" class="draft-chip-remove" data-remove-player="${escapeAttr(name)}" title="Return to pool">&times;</button>` : "";
+  return `<div class="draft-chip${selectedClass}" draggable="${canMoveDraft(name, undefined)}" data-player="${escapeAttr(name)}">
     <span class="draft-chip-name">${escapeHtml(name)}</span>
     ${ovrBit}
     ${posLabel?`<span class="draft-chip-pos">${escapeHtml(posLabel)}</span>`:""}
@@ -4515,6 +4587,7 @@ function renderDraftPage(){
   const boxesEl = document.getElementById("draftTeamBoxes");
   if(!poolEl || !boxesEl) return;
 
+  renderDraftLogin();
   const assignments = draftAssignmentsObj();
   const teamNames = draftTeamNamesArr();
   const undrafted = draftPoolPlayers().filter(n=> assignments[n]===undefined);
@@ -4588,6 +4661,7 @@ draftPanel.addEventListener("click", async e=>{
   }
   const removeBtn = e.target.closest("[data-remove-player]");
   if(removeBtn){
+    if(!canMoveDraft(removeBtn.dataset.removePlayer, undefined)){ denyDraft(); return; }
     delete draftAssignmentsObj()[removeBtn.dataset.removePlayer];
     await saveDraftAssignments();
     renderDraftPage();
@@ -4596,6 +4670,7 @@ draftPanel.addEventListener("click", async e=>{
   const chip = e.target.closest(".draft-chip");
   if(chip){
     const name = chip.dataset.player;
+    if(!canMoveDraft(name, undefined)){ denyDraft(); return; }
     draftSelectedPlayer = (draftSelectedPlayer===name) ? null : name;
     renderDraftPage();
     return;
@@ -4612,6 +4687,7 @@ draftPanel.addEventListener("click", async e=>{
     return;
   }
   if(e.target.closest("#draftPool")){
+    if(!canMoveDraft(draftSelectedPlayer, undefined)){ denyDraft(); return; }
     delete draftAssignmentsObj()[draftSelectedPlayer];
     draftSelectedPlayer = null;
     await saveDraftAssignments();
@@ -4623,6 +4699,7 @@ draftPanel.addEventListener("click", async e=>{
 draftPanel.addEventListener("dragstart", e=>{
   const chip = e.target.closest(".draft-chip");
   if(!chip) return;
+  if(!canMoveDraft(chip.dataset.player, undefined)){ e.preventDefault(); denyDraft(); return; }
   e.dataTransfer.setData("text/plain", chip.dataset.player);
   e.dataTransfer.effectAllowed = "move";
 });
@@ -4646,7 +4723,10 @@ draftPanel.addEventListener("drop", async e=>{
   if(!name) return;
   if(box){
     if(!tryAssignDraft(name, Number(box.dataset.slot))){ renderDraftPage(); return; }
-  }else delete draftAssignmentsObj()[name];
+  }else{
+    if(!canMoveDraft(name, undefined)){ denyDraft(); return; }
+    delete draftAssignmentsObj()[name];
+  }
   draftSelectedPlayer = null;
   await saveDraftAssignments();
   renderDraftPage();
