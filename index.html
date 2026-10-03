@@ -338,7 +338,7 @@
     background:var(--navy-800);
     box-shadow:1px 0 0 var(--hairline);
   }
-  #playersTable tbody tr:nth-child(even) td:first-child{background:#152A4A;}
+  #playersTable tbody tr:nth-child(even) td:first-child{background:#2A1A47;}
   #playersTable tbody tr:hover td:first-child{background:var(--navy-700);}
 
   /* ---------- sticky name+team columns (attributes table) ----------
@@ -371,7 +371,7 @@
     box-shadow:1px 0 0 var(--hairline);
   }
   #attributesTable tbody tr:nth-child(even) td:first-child,
-  #attributesTable tbody tr:nth-child(even) td:nth-child(2){background:#152A4A;}
+  #attributesTable tbody tr:nth-child(even) td:nth-child(2){background:#2A1A47;}
   #attributesTable tbody tr:hover td:first-child,
   #attributesTable tbody tr:hover td:nth-child(2){background:var(--navy-700);}
   .ovr-badge{
@@ -648,6 +648,11 @@
     padding:5px 6px;
   }
   #adminTeamBody input[type="text"]{width:64px;}
+  #adminTeamBody input.admin-team-name{width:170px;}
+  #adminTeamBody input.admin-team-code{width:52px; text-transform:uppercase; text-align:center;}
+  #adminTeamBody input[type="color"]{width:40px; height:30px; padding:1px; cursor:pointer;}
+  #adminTeamBody .admin-team-remove{color:var(--crimson); border-color:var(--crimson);}
+  #adminTeamBody .admin-team-remove:hover{color:var(--gold); border-color:var(--gold);}
   #adminTeamBody td:first-child{white-space:nowrap;}
   #adminGamesBody input, #adminGamesBody select,
   #adminWeeklyBody input, #adminWeeklyBody select,
@@ -1526,12 +1531,13 @@
       <div style="overflow-x:auto;">
         <table id="adminTeamTable">
           <thead><tr>
-            <th style="text-align:left;">Team</th><th>W</th><th>L</th><th>Streak</th><th>L10</th><th>RS</th><th>RA</th>
+            <th style="text-align:left;">Team Name</th><th>Code</th><th>Color</th><th>W</th><th>L</th><th>Streak</th><th>L10</th><th>RS</th><th>RA</th>
           </tr></thead>
           <tbody id="adminTeamBody"></tbody>
         </table>
       </div>
       <div class="import-row" style="margin-top:12px;">
+        <button class="template-link" id="adminTeamAdd">+ Add Team</button>
         <button class="file-btn" id="adminTeamSave">Save Team Updates</button>
       </div>
       <div class="import-status" id="adminTeamStatus"></div>
@@ -2587,7 +2593,18 @@ function ovrBadge(letter, num){
 // pitching stat sheets", since a mop-up reliever who got a token at-bat in
 // a blowout (or a position player who pitched an inning of a blowout) would
 // otherwise wrongly qualify.
+// Hard-coded two-way players: always treated as two-way (listed on both the
+// Hitters and Pitchers attribute tables) regardless of their traits/positions.
+const HARDCODED_TWO_WAY = new Set([
+  "supreme leader bryan pacheco",
+  "supreme leader bryan",
+  "fuck you",
+]);
+function isHardcodedTwoWay(p){
+  return !!p && HARDCODED_TWO_WAY.has(String(p.name||"").trim().toLowerCase());
+}
 function isTwoWayPlayer(p){
+  if(isHardcodedTwoWay(p)) return true;
   const isTwoWayTrait = t => typeof t==="string" && t.startsWith("Two Way");
   return isTwoWayTrait(p.trait1) || isTwoWayTrait(p.trait2);
 }
@@ -2648,7 +2665,7 @@ function attributesGroups(){
   const hitters = [], pitchers = [];
   rows.forEach(p=>{
     const isPitcherPos = PITCHER_POS_RE.test(p.pos||"");
-    if(isPitcherPos) pitchers.push(p);
+    if(isPitcherPos || isHardcodedTwoWay(p)) pitchers.push(p);
     if(!isPitcherPos || isTwoWayPlayer(p)) hitters.push(p);
   });
   hitters.sort((a,b)=> tierRank(b.ovr)-tierRank(a.ovr));
@@ -4291,31 +4308,113 @@ function renderAdminTeamEditor(){
   if(!tbody) return;
   tbody.innerHTML = teamsArr().map((t,i)=>`
     <tr data-idx="${i}">
-      <td>${teamTag(t.id)} ${t.name}</td>
+      <td><input type="text" class="admin-team-name" data-field="name" value="${escapeAttr(t.name)}" placeholder="Team name"></td>
+      <td><input type="text" class="admin-team-code" data-field="id" value="${escapeAttr(t.id)}" maxlength="3" placeholder="ABC"></td>
+      <td><input type="color" data-field="color" value="${/^#[0-9a-fA-F]{6}$/.test(t.color)?t.color:"#8AA6C1"}"></td>
       <td><input type="number" data-field="wins" value="${t.wins}"></td>
       <td><input type="number" data-field="losses" value="${t.losses}"></td>
-      <td><input type="text" data-field="streak" value="${t.streak}"></td>
-      <td><input type="text" data-field="last10" value="${t.last10}"></td>
+      <td><input type="text" data-field="streak" value="${escapeAttr(t.streak)}"></td>
+      <td><input type="text" data-field="last10" value="${escapeAttr(t.last10)}"></td>
       <td><input type="number" data-field="runsFor" value="${t.runsFor}"></td>
       <td><input type="number" data-field="runsAgainst" value="${t.runsAgainst}"></td>
+      <td><button type="button" class="template-link admin-team-remove" data-idx="${i}">Remove</button></td>
     </tr>
   `).join("");
 }
 
-async function saveAdminTeamEditor(){
+// Copies whatever is typed in the editor into the season's team objects
+// (no saving). Returns the list of {oldId,newId} code changes, or null after
+// showing an error if a code is invalid or duplicated.
+function collectAdminTeamEdits(){
   const arr = teamsArr();
-  document.querySelectorAll("#adminTeamBody tr").forEach(row=>{
+  const rows = Array.from(document.querySelectorAll("#adminTeamBody tr"));
+  const status = document.getElementById("adminTeamStatus");
+  const codes = new Set();
+  const edits = [];
+  for(const row of rows){
     const t = arr[Number(row.dataset.idx)];
-    if(!t) return;
-    row.querySelectorAll("input").forEach(inp=>{
-      const field = inp.dataset.field;
-      t[field] = (field==="streak"||field==="last10") ? inp.value : (Number(inp.value)||0);
-    });
+    if(!t) continue;
+    const get = f => row.querySelector(`[data-field="${f}"]`).value;
+    const code = get("id").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,3);
+    const name = get("name").trim();
+    if(code.length!==3){ setStatus(status, `"${name||t.name}" needs a 3-character code.`, true); return null; }
+    if(!name){ setStatus(status, `Team ${code} needs a name.`, true); return null; }
+    if(codes.has(code)){ setStatus(status, `Code ${code} is used by more than one team.`, true); return null; }
+    codes.add(code);
+    edits.push({ t, code, name, row });
+  }
+  const changes = [];
+  edits.forEach(({t,code,name,row})=>{
+    const get = f => row.querySelector(`[data-field="${f}"]`).value;
+    if(t.id!==code) changes.push({ oldId:t.id, newId:code });
+    t.id = code; t.name = name; t.color = get("color");
+    t.wins = Number(get("wins"))||0; t.losses = Number(get("losses"))||0;
+    t.streak = get("streak"); t.last10 = get("last10");
+    t.runsFor = Number(get("runsFor"))||0; t.runsAgainst = Number(get("runsAgainst"))||0;
   });
-  await saveToStorage(`teams_${state.season}`, arr);
+  return changes;
+}
+
+// When a team's code changes, point everything in this season that used the
+// old code (players, box scores, honors, records, awards, logo) at the new one.
+async function renameTeamEverywhere(oldId, newId){
+  const S = SEASONS[state.season];
+  const same = v => normTeamKey(v)===normTeamKey(oldId);
+  const fix = (list, field, key)=>{
+    let hit = false;
+    (list||[]).forEach(o=>{ if(o && same(o[field])){ o[field] = newId; hit = true; } });
+    if(hit && key) saveToStorage(`${key}_${state.season}`, list);
+  };
+  fix(S.batters,"team","batters"); fix(S.pitchers,"team","pitchers");
+  fix(S.attributes,"team","attributes");
+  fix(S.games,"away","games"); fix(S.games,"home","games");
+  fix(S.records,"team","records"); fix(S.awards,"team","awards");
+  if(S.weekly){
+    let hit = false;
+    ["player","pitcher"].forEach(k=>{ if(S.weekly[k] && same(S.weekly[k].team)){ S.weekly[k].team = newId; hit = true; } });
+    if(hit) saveToStorage(`weekly_${state.season}`, S.weekly);
+  }
+  try{
+    const logo = await loadTeamLogo(oldId);
+    if(logo) await saveTeamLogo(newId, logo);
+  }catch(e){}
+}
+
+async function saveAdminTeamEditor(){
+  const changes = collectAdminTeamEdits();
+  if(!changes) return;
+  for(const c of changes) await renameTeamEverywhere(c.oldId, c.newId);
+  await saveToStorage(`teams_${state.season}`, teamsArr());
   renderAll();
   setStatus(document.getElementById("adminTeamStatus"), "Saved.", false);
 }
+
+function addAdminTeam(){
+  if(collectAdminTeamEdits()===null) return;
+  const arr = teamsArr();
+  let n = arr.length+1, code;
+  do { code = "T"+String(n++).padStart(2,"0"); } while(arr.some(t=>t.id===code));
+  arr.push({ id:code, name:"New Team", color:"#8B5CD6", wins:0, losses:0, streak:"-", last10:"0-0", runsFor:0, runsAgainst:0 });
+  renderAdminTeamEditor();
+  setStatus(document.getElementById("adminTeamStatus"), "New team added \u2014 set its name and code, then Save.", false);
+}
+
+async function removeAdminTeam(idx){
+  const arr = teamsArr();
+  const t = arr[idx];
+  if(!t) return;
+  if(!confirm(`Remove ${t.name} (${t.id})? Players and games that reference it will show the raw code.`)) return;
+  if(collectAdminTeamEdits()===null) return;
+  arr.splice(idx,1);
+  await saveToStorage(`teams_${state.season}`, arr);
+  renderAll();
+  setStatus(document.getElementById("adminTeamStatus"), "Team removed.", false);
+}
+
+document.addEventListener("click", e=>{
+  const rm = e.target.closest(".admin-team-remove");
+  if(rm) removeAdminTeam(Number(rm.dataset.idx));
+});
 
 /* ---------- admin: player of the week / pitcher of the week ---------- */
 
@@ -5295,6 +5394,7 @@ document.getElementById("attributesFile").addEventListener("change", e=>{
 });
 
 document.getElementById("adminTeamSave").addEventListener("click", saveAdminTeamEditor);
+document.getElementById("adminTeamAdd").addEventListener("click", addAdminTeam);
 document.getElementById("sheetSyncBtn").addEventListener("click", syncFromSheets);
 document.getElementById("adminWeeklySave").addEventListener("click", saveAdminWeeklyEditor);
 
