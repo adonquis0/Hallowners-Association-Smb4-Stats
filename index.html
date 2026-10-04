@@ -374,6 +374,21 @@
   #attributesTable tbody tr:nth-child(even) td:nth-child(2){background:#2A1A47;}
   #attributesTable tbody tr:hover td:first-child,
   #attributesTable tbody tr:hover td:nth-child(2){background:var(--navy-700);}
+  .drafted-tag{
+    display:inline-block;
+    margin-left:6px;
+    padding:1px 6px;
+    border-radius:2px;
+    border:1px solid var(--gold);
+    color:var(--gold);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    vertical-align:middle;
+    white-space:nowrap;
+  }
   .ovr-badge{
     display:inline-block;
     font-family:'IBM Plex Mono',monospace;
@@ -1417,11 +1432,11 @@
     <div class="leader-grid" id="leaderGrid"></div>
 
     <div class="toggle-row" id="playersSubTabRow" style="margin-bottom:16px;">
-      <button class="toggle-btn active" data-players-subview="stats">Full Stats</button>
-      <button class="toggle-btn" data-players-subview="attributes">Attributes</button>
+      <button class="toggle-btn" data-players-subview="stats">Full Stats</button>
+      <button class="toggle-btn active" data-players-subview="attributes">Attributes</button>
     </div>
 
-    <div id="playersStatsSubview">
+    <div id="playersStatsSubview" style="display:none;">
       <div class="toggle-row" id="statToggleRow" style="flex-wrap:wrap; align-items:center;">
         <button class="toggle-btn active" data-stat-view="batting">Batting</button>
         <button class="toggle-btn" data-stat-view="pitching">Pitching</button>
@@ -1447,7 +1462,7 @@
       </div>
     </div>
 
-    <div id="playersAttrSubview" style="display:none;">
+    <div id="playersAttrSubview">
       <p style="color:var(--cream-dim); font-size:13px; margin-top:0;">In-game ratings, chemistry, and traits for the current roster.</p>
       <div class="toggle-row" id="attrToggleRow" style="flex-wrap:wrap; align-items:center;">
         <button class="toggle-btn active" data-attr-view="hitters">Hitters</button>
@@ -2787,7 +2802,11 @@ function renderAttributesHead(){
 }
 
 function attrCellHtml(p, col){
-  if(col.key==="name") return `<td><a class="player-link" data-name="${escapeAttr(p.name)}">${escapeHtml(p.name)}</a></td>`;
+  if(col.key==="name"){
+    const drafted = draftAssignmentsObj()[p.name]!==undefined;
+    const tag = drafted ? ` <span class="drafted-tag">Drafted</span>` : "";
+    return `<td><a class="player-link" data-name="${escapeAttr(p.name)}">${escapeHtml(p.name)}</a>${tag}</td>`;
+  }
   if(col.render) return `<td${col.cellClass?` class="${col.cellClass}"`:""}>${col.render(p)}</td>`;
   const v = p[col.key];
   return `<td>${(v===null||v===undefined||v==="") ? "&ndash;" : v}</td>`;
@@ -4173,7 +4192,7 @@ document.getElementById("tabs").addEventListener("click", e=>{
 // page-button toggle so switching between them doesn't lose your place in
 // the rest of the site's tab bar.
 function syncPlayersSubviewScroll(){
-  const view = document.querySelector('#playersSubTabRow .toggle-btn.active')?.dataset.playersSubview || "stats";
+  const view = document.querySelector('#playersSubTabRow .toggle-btn.active')?.dataset.playersSubview || "attributes";
   if(view==="stats"){
     syncPlayersScrollTopWidth();
   } else {
@@ -4755,6 +4774,7 @@ function renderDraftPage(){
   if(!poolEl || !boxesEl) return;
 
   renderDraftLogin();
+  try{ renderAttributesBody(); }catch(e){}
   const clock = draftOnClock();
   const assignments = draftAssignmentsObj();
   const teamNames = draftTeamNamesArr();
