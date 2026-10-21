@@ -2141,8 +2141,8 @@ const HISTORY = [
    batters need PA_PER_TEAM_GAME plate appearances per team game, pitchers
    need IP_PER_TEAM_GAME innings per team game. Edit the two rates below
    to change the bar. */
-const PA_PER_TEAM_GAME = 3.1;
-const IP_PER_TEAM_GAME = 1.0;
+const PA_PER_TEAM_GAME = 2;
+const IP_PER_TEAM_GAME = 0.5;
 const state = { season: SEASON_IDS[0] };
 
 function teamsArr(){ return SEASONS[state.season].teams; }
@@ -2343,10 +2343,20 @@ function renderStandings(){
 
 function paOf(b){ return (b.ab||0)+(b.bb||0)+(b.hbp||0)+(b.sac||0)+(b.sf||0); }
 
-// Games the player's team has played this season (W + L from the standings).
+// Games the player's team has played this season. Uses the standings
+// (W + L) but never less than what the other data proves: box scores on file
+// for that team, or the most games any of its players has appeared in. This
+// keeps qualification working even if the standings haven't been updated.
 function teamGamesPlayed(teamId){
-  const t = teamById()[teamId] || teamById()[normTeamKey(teamId)];
-  return t ? (t.wins||0) + (t.losses||0) : 0;
+  const key = normTeamKey(teamId);
+  const t = teamById()[teamId] || teamById()[key];
+  let games = t ? (t.wins||0) + (t.losses||0) : 0;
+  const boxGames = gamesArr().filter(g=> normTeamKey(g.away)===key || normTeamKey(g.home)===key).length;
+  games = Math.max(games, boxGames);
+  battersArr().concat(pitchersArr()).forEach(p=>{
+    if(normTeamKey(p.team)===key) games = Math.max(games, p.g||0);
+  });
+  return games;
 }
 function qualifiedBatters(){
   return battersArr().filter(b=>{
