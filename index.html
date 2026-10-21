@@ -2136,11 +2136,14 @@ const HISTORY = [
 ];
 
 /* ---------- season state + qualification thresholds ----------
-   minPA / minIP control who qualifies for the League Leaders cards.
-   There's no UI for these on purpose — edit the numbers below to
-   change the qualification bar (e.g. minPA: 3.1 * games-played,
-   the usual per-team-game rate, or just a flat number like this). */
-const state = { season: SEASON_IDS[0], minPA: 20, minIP: 5 };
+   Who qualifies for the League Leaders cards scales with the number of
+   games the player's TEAM has played (wins + losses in the standings):
+   batters need PA_PER_TEAM_GAME plate appearances per team game, pitchers
+   need IP_PER_TEAM_GAME innings per team game. Edit the two rates below
+   to change the bar. */
+const PA_PER_TEAM_GAME = 3.1;
+const IP_PER_TEAM_GAME = 1.0;
+const state = { season: SEASON_IDS[0] };
 
 function teamsArr(){ return SEASONS[state.season].teams; }
 function battersArr(){ return SEASONS[state.season].batters; }
@@ -2340,8 +2343,23 @@ function renderStandings(){
 
 function paOf(b){ return (b.ab||0)+(b.bb||0)+(b.hbp||0)+(b.sac||0)+(b.sf||0); }
 
-function qualifiedBatters(){ return battersArr().filter(b=>paOf(b)>=state.minPA); }
-function qualifiedPitchers(){ return pitchersArr().filter(p=>(p.ip||0)>=state.minIP); }
+// Games the player's team has played this season (W + L from the standings).
+function teamGamesPlayed(teamId){
+  const t = teamById()[teamId] || teamById()[normTeamKey(teamId)];
+  return t ? (t.wins||0) + (t.losses||0) : 0;
+}
+function qualifiedBatters(){
+  return battersArr().filter(b=>{
+    const tg = teamGamesPlayed(b.team);
+    return tg>0 && paOf(b) >= PA_PER_TEAM_GAME*tg;
+  });
+}
+function qualifiedPitchers(){
+  return pitchersArr().filter(p=>{
+    const tg = teamGamesPlayed(p.team);
+    return tg>0 && (p.ip||0) >= IP_PER_TEAM_GAME*tg;
+  });
+}
 
 function renderLeaders(){
   const top = (arr,key,label,fmt,asc)=>{
@@ -4356,7 +4374,7 @@ function collectAdminTeamEdits(){
     const get = f => row.querySelector(`[data-field="${f}"]`).value;
     const code = get("id").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,3);
     const name = get("name").trim();
-    if(code.length!==3){ setStatus(status, `"${name||t.name}" needs a 3-character code.`, true); return null; }
+    if(code.length<1 || code.length>3){ setStatus(status, `"${name||t.name}" needs a code of 1\u20133 characters.`, true); return null; }
     if(!name){ setStatus(status, `Team ${code} needs a name.`, true); return null; }
     if(codes.has(code)){ setStatus(status, `Code ${code} is used by more than one team.`, true); return null; }
     codes.add(code);
