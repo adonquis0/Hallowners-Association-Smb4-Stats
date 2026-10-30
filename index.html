@@ -2384,8 +2384,11 @@ function renderLeaders(){
     top(qb,"hr","HR"),
     top(qb,"rbi","RBI"),
     top(qb,"ops","OPS", v=>v.toFixed(3)),
+    top(qb,"sb","STOLEN BASES"),
     top(qp,"so","STRIKEOUTS"),
     top(qp,"era","ERA", v=>v.toFixed(2), true),
+    // Closers rarely reach the innings minimum, so saves leaders draw from every pitcher.
+    top(pitchersArr().filter(p=>(p.sv||0)>0),"sv","SAVES"),
   ];
   document.getElementById("leaderGrid").innerHTML = cards.map(c=>`
     <div class="leader-card">
